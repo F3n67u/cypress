@@ -1,7 +1,7 @@
 import _ from 'lodash'
-import { observable, computed } from 'mobx'
+import { observable, computed, makeObservable } from 'mobx'
 
-import { FileDetails } from '@packages/ui-components'
+import { FileDetails } from '@packages/types'
 
 import { Alias } from '../instruments/instrument-model'
 import Err from '../errors/err-model'
@@ -30,6 +30,7 @@ export default class Hook implements HookProps {
   private _currentNumber = 1
 
   constructor (props: HookProps) {
+    makeObservable(this)
     this.hookId = props.hookId
     this.hookName = props.hookName
     this.invocationDetails = props.invocationDetails
@@ -78,7 +79,7 @@ export default class Hook implements HookProps {
   }
 
   addCommand (command: CommandModel) {
-    if (!command.event && !this.isStudio) {
+    if (!command.event && command.type !== 'system' && !this.isStudio) {
       command.number = this._currentNumber
       this._currentNumber++
     }
@@ -117,8 +118,8 @@ export default class Hook implements HookProps {
     this.commands.splice(commandIndex, 1)
   }
 
-  commandMatchingErr (errToMatch: Err) {
-    return _(this.commands)
+  commandMatchingErr (errToMatch: Err): CommandModel | undefined {
+    return _(this.commands) // @ts-ignore
     .filter(({ err }) => {
       return err && err.message === errToMatch.message && err.message !== undefined
     })

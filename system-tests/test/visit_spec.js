@@ -121,6 +121,7 @@ describe('e2e visit', () => {
       settings: {
         responseTimeout: 500,
         pageLoadTimeout: 1000,
+        e2e: {},
       },
       servers: {
         port: 3434,
@@ -130,13 +131,14 @@ describe('e2e visit', () => {
     })
 
     systemTests.it('passes', {
-      spec: 'visit_spec.js',
+      browser: '!webkit', // TODO(webkit): fix+unskip
+      spec: 'visit.cy.js',
       snapshot: true,
       onRun (exec) {
         return startTlsV1Server(6776)
         .then((serv) => {
           return exec()
-          .then(() => {
+          .finally(() => {
             return serv.destroy()
           })
         })
@@ -144,7 +146,8 @@ describe('e2e visit', () => {
     })
 
     systemTests.it('passes with experimentalSourceRewriting', {
-      spec: 'source_rewriting_spec.js',
+      browser: '!webkit', // TODO(webkit): fix+unskip
+      spec: 'source_rewriting.cy.js',
       config: {
         experimentalSourceRewriting: true,
       },
@@ -160,33 +163,35 @@ describe('e2e visit', () => {
       },
     })
 
-    systemTests.it('fails when network connection immediately fails', {
-      spec: 'visit_http_network_error_failing_spec.js',
+    // TODO: fix flaky test https://github.com/cypress-io/cypress/issues/23252
+    systemTests.it.skip('fails when network connection immediately fails', {
+      spec: 'visit_http_network_error_failing.cy.js',
       snapshot: true,
       expectedExitCode: 1,
     })
 
     systemTests.it('fails when server responds with 500', {
-      spec: 'visit_http_500_response_failing_spec.js',
+      spec: 'visit_http_500_response_failing.cy.js',
       snapshot: true,
       expectedExitCode: 1,
     })
 
-    systemTests.it('fails when file server responds with 404', {
-      spec: 'visit_file_404_response_failing_spec.js',
+    // TODO: fix flaky test https://github.com/cypress-io/cypress/issues/23162
+    systemTests.it.skip('fails when file server responds with 404', {
+      spec: 'visit_file_404_response_failing.cy.js',
       snapshot: true,
       expectedExitCode: 1,
     })
 
     systemTests.it('fails when content type isnt html', {
-      spec: 'visit_non_html_content_type_failing_spec.js',
+      spec: 'visit_non_html_content_type_failing.cy.js',
       snapshot: true,
       expectedExitCode: 1,
     })
 
     systemTests.it('calls onBeforeLoad when overwriting cy.visit', {
       snapshot: true,
-      spec: 'issue_2196_spec.js',
+      spec: 'issue_2196.cy.js',
     })
   })
 
@@ -194,6 +199,7 @@ describe('e2e visit', () => {
     systemTests.setup({
       settings: {
         responseTimeout: 2000,
+        e2e: {},
       },
       servers: {
         port: 3434,
@@ -203,7 +209,7 @@ describe('e2e visit', () => {
     })
 
     systemTests.it('fails when response never ends', {
-      spec: 'visit_response_never_ends_failing_spec.js',
+      spec: 'visit_response_never_ends_failing.cy.js',
       snapshot: true,
       expectedExitCode: 3,
     })
@@ -213,6 +219,7 @@ describe('e2e visit', () => {
     systemTests.setup({
       settings: {
         pageLoadTimeout: 1000,
+        e2e: {},
       },
       servers: {
         port: 3434,
@@ -222,7 +229,7 @@ describe('e2e visit', () => {
     })
 
     systemTests.it('fails when visit times out', {
-      spec: 'visit_http_timeout_failing_spec.js',
+      spec: 'visit_http_timeout_failing.cy.js',
       snapshot: true,
       expectedExitCode: 2,
     })

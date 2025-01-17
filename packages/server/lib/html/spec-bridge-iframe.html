@@ -1,0 +1,16 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8">
+    <title>{{title}}</title>
+  </head>
+  <body>
+    <script>
+      {{if(options.superDomain)}}
+        document.domain = '{{superDomain}}';
+      {{/if}}
+    </script>
+    <script src="/{{namespace}}/runner/cypress_cross_origin_runner.js"></script>
+    <script>{{privilegedChannel | safe}}</script>
+  </body>
+</html>

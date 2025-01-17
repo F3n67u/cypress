@@ -1,9 +1,5 @@
 declare const example: {
-  getPathToExamples(): Promise<string[]>;
-  getPathToPlugins(): string;
-  getPathToSupportFiles(): Promise<string[]>;
-  getPathToTsConfig(): string;
-  getPathToFixture(): string;
+  getPathToE2E(): string
 }
 
-export default example;
+export default example

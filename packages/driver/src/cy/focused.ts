@@ -2,6 +2,7 @@ import $dom from '../dom'
 import $window from '../dom/window'
 import $elements from '../dom/elements'
 import $actionability from './actionability'
+import type { StateFunc } from '../cypress/state'
 
 const simulateBlurEvent = (el, win) => {
   // todo handle relatedTarget's per the spec
@@ -49,7 +50,7 @@ const simulateFocusEvent = (el, win) => {
 }
 
 // eslint-disable-next-line @cypress/dev/arrow-body-multiline-braces
-export const create = (state) => ({
+export const create = (state: StateFunc) => ({
   documentHasFocus () {
     // hardcode document has focus as true
     // since the test should assume the window
@@ -122,17 +123,64 @@ export const create = (state) => ({
     const $focused = this.getFocused(el.ownerDocument)
 
     let hasFocused = false
+    let onFocusCapture
 
     // we need to bind to the focus event here
     // because some browsers will not ever fire
     // the focus event if the window itself is not
     // currently focused
     const cleanup = () => {
+      if (onFocusCapture) {
+        $elements.callNativeMethod(el, 'removeEventListener', 'focus', onFocusCapture, { capture: true })
+      }
+
       return $elements.callNativeMethod(el, 'removeEventListener', 'focus', onFocus)
     }
 
     const onFocus = () => {
       return hasFocused = true
+    }
+
+    if (Cypress.isBrowser('webkit')) {
+      // By default, WebKit will select the contents of an input element when the input is focused.
+      // This is problematic, as we use the existence of any selection to determine whether
+      // we adjust the input's cursor and prepare the input for receiving additional content.
+      // Without intervention, we will always interpret this default selection as a user-performed selection
+      // and persist it, leaving the selection contents to be overwritten rather than appended to
+      // on subsequent actions.
+      //
+      // In order to avoid this behavior, we use a focus event during the capture phase to set
+      // our own initial blank selection. This short-circuits WebKit's default behavior and ensures
+      // that any user-performed selections performed during the focus event's bubble phase are still applied.
+
+      onFocusCapture = (event: FocusEvent) => {
+        const eventTarget = event.currentTarget as HTMLInputElement
+
+        if (!eventTarget.setSelectionRange) {
+          return
+        }
+
+        try {
+          // Prior to being focused, the element's selectionStart/End will be at 0.
+          // Even so, we need to explicitly call setSelectionRange here to prevent WebKit
+          // from selecting the contents after being focused.
+          //
+          // By re-setting the selection at the current start/end values,
+          // we ensure that any selection values set by previous event handlers
+          // are persisted.
+          eventTarget.setSelectionRange(
+            eventTarget.selectionStart,
+            eventTarget.selectionEnd,
+          )
+        } catch (e) {
+          // Some input types do not support selections and will throw when
+          // setSelectionRange is called. We can ignore these errors,
+          // as these elements wouldn't have a selection to we need to
+          // prevent anyway.
+        }
+      }
+
+      $elements.callNativeMethod(el, 'addEventListener', 'focus', onFocusCapture, { capture: true })
     }
 
     $elements.callNativeMethod(el, 'addEventListener', 'focus', onFocus)
@@ -194,30 +242,30 @@ export const create = (state) => ({
   needsFocus ($elToFocus, $previouslyFocusedEl) {
     const $focused = this.getFocused()
 
-    // if we dont have a focused element
+    // if we don't have a focused element
     // we know we want to fire a focus event
     if (!$focused) {
       return true
     }
 
-    // if we didnt have a previously focused el
+    // if we didn't have a previously focused el
     // then always return true
     if (!$previouslyFocusedEl) {
       return true
     }
 
-    // if we are attemping to focus a differnet element
+    // if we are attempting to focus a different element
     // than the one we currently have, we know we want
     // to fire a focus event
     if ($focused.get(0) !== $elToFocus.get(0)) {
       return true
     }
 
-    // if our focused element isnt the same as the previously
+    // if our focused element isn't the same as the previously
     // focused el then what probably happened is our mouse
-    // down event caused our element to receive focuse
+    // down event caused our element to receive focus
     // without the browser sending the focus event
-    // which happens when the window isnt in focus
+    // which happens when the window isn't in focus
     if ($previouslyFocusedEl.get(0) !== $focused.get(0)) {
       return true
     }
@@ -225,18 +273,22 @@ export const create = (state) => ({
     return false
   },
 
-  getFocused (document = state('document')) {
-    const { activeElement } = document
+  getFocused (document: Document | ShadowRoot | undefined = state('document')) {
+    if (document) {
+      const { activeElement } = document
 
-    if ($dom.isFocused(activeElement)) {
-      return $dom.wrap(activeElement)
+      if ($dom.isFocused(activeElement)) {
+        // if the active element is a shadow root, we need to recursively get the active element of the shadow root
+        if (activeElement?.shadowRoot && activeElement.shadowRoot.activeElement) {
+          return this.getFocused(activeElement.shadowRoot)
+        }
+
+        return $dom.wrap(activeElement)
+      }
     }
 
     return null
   },
 })
 
-export interface IFocused extends Omit<
-  ReturnType<typeof create>,
-  'documentHasFocus' | 'interceptFocus' | 'interceptBlur'
-> {}
+export interface IFocused extends ReturnType<typeof create> {}

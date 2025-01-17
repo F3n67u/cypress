@@ -9,25 +9,43 @@ import express from 'express'
 import sinon from 'sinon'
 import { expect } from 'chai'
 import supertest from 'supertest'
-import { allowDestroy } from '@packages/network'
+import { allowDestroy, DocumentDomainInjection } from '@packages/network'
 import { EventEmitter } from 'events'
-
+import { RemoteStates } from '@packages/server/lib/remote_states'
+import { CookieJar } from '@packages/server/lib/util/cookies'
 const Request = require('@packages/server/lib/request')
 const getFixture = async () => {}
 
 context('network stubbing', () => {
   let config
-  let remoteState
+  let remoteStates: RemoteStates
   let netStubbingState: NetStubbingState
   let app
   let destinationApp
   let server
   let destinationPort
   let socket
+  let documentDomainInjection: DocumentDomainInjection
+
+  const serverPort = 3030
+  const fileServerPort = 3030
+
+  const remoteStateConfig = () => {
+    return { server: serverPort, fileServer: fileServerPort }
+  }
+
+  const createRemoteStates = () => {
+    return new RemoteStates(remoteStateConfig, documentDomainInjection)
+  }
 
   beforeEach((done) => {
-    config = {}
-    remoteState = {}
+    config = {
+      experimentalCspAllowList: false,
+    }
+
+    documentDomainInjection = DocumentDomainInjection.InjectionBehavior({ injectDocumentDomain: false, testingType: 'e2e' })
+
+    remoteStates = createRemoteStates()
     socket = new EventEmitter()
     socket.toDriver = sinon.stub()
     app = express()
@@ -38,9 +56,22 @@ context('network stubbing', () => {
       netStubbingState,
       config,
       middleware: defaultMiddleware,
-      getRemoteState: () => remoteState,
+      getCookieJar: () => new CookieJar(),
+      remoteStates,
       getFileServerToken: () => 'fake-token',
       request: new Request(),
+      getRenderedHTMLOrigins: () => ({}),
+      serverBus: new EventEmitter(),
+      resourceTypeAndCredentialManager: {
+        get () {
+          return {
+            resourceType: 'xhr',
+            credentialStatus: 'same-origin',
+          }
+        },
+        set () {},
+        clear () {},
+      },
     })
 
     app.use((req, res, next) => {
@@ -57,8 +88,48 @@ context('network stubbing', () => {
 
     destinationApp.get('/', (req, res) => res.send('it worked'))
 
+    destinationApp.get('/csp-header-strip', (req, res) => {
+      const headerName = req.query.headerName
+
+      res.setHeader('content-type', 'text/html')
+      res.setHeader(headerName, 'script-src \'self\' localhost')
+      res.send('<foo>bar</foo>')
+    })
+
+    destinationApp.get('/csp-header-none', (req, res) => {
+      const headerName = req.query.headerName
+
+      proxy.http.config.experimentalCspAllowList = true
+      res.setHeader('content-type', 'text/html')
+      res.setHeader(headerName, 'fake-directive fake-value')
+      res.send('<foo>bar</foo>')
+    })
+
+    destinationApp.get('/csp-header-single', (req, res) => {
+      const headerName = req.query.headerName
+
+      proxy.http.config.experimentalCspAllowList = ['script-src']
+      res.setHeader('content-type', 'text/html')
+      res.setHeader(headerName, ['default-src \'self\'', 'script-src \'self\' localhost'])
+      res.send('<foo>bar</foo>')
+    })
+
+    destinationApp.get('/csp-header-multiple', (req, res) => {
+      const headerName = req.query.headerName
+
+      proxy.http.config.experimentalCspAllowList = ['script-src', 'default-src']
+      res.setHeader('content-type', 'text/html')
+      res.setHeader(headerName, ['default-src \'self\'', 'script-src \'self\' localhost'])
+      res.send('<foo>bar</foo>')
+    })
+
     server = allowDestroy(destinationApp.listen(() => {
       destinationPort = server.address().port
+      remoteStates.set(`http://localhost:${destinationPort}`)
+      remoteStates.set(`http://localhost:${destinationPort}/csp-header-strip`)
+      remoteStates.set(`http://localhost:${destinationPort}/csp-header-none`)
+      remoteStates.set(`http://localhost:${destinationPort}/csp-header-single`)
+      remoteStates.set(`http://localhost:${destinationPort}/csp-header-multiple`)
       done()
     }))
   })
@@ -92,6 +163,7 @@ context('network stubbing', () => {
         body: 'foo',
       },
       getFixture: async () => {},
+      matches: 1,
     })
 
     return supertest(app)
@@ -120,6 +192,7 @@ context('network stubbing', () => {
         },
       },
       getFixture: async () => {},
+      matches: 1,
     })
 
     return supertest(app)
@@ -142,6 +215,7 @@ context('network stubbing', () => {
         body: 'foo',
       },
       getFixture: async () => {},
+      matches: 1,
     })
 
     return supertest(app)
@@ -162,6 +236,7 @@ context('network stubbing', () => {
       },
       hasInterceptor: true,
       getFixture,
+      matches: 1,
     })
 
     socket.toDriver.callsFake((_, event, data) => {
@@ -179,6 +254,9 @@ context('network stubbing', () => {
           state: netStubbingState,
           getFixture,
           args: [],
+          socket: {
+            toDriver () {},
+          },
         })
       }
     })
@@ -200,7 +278,7 @@ context('network stubbing', () => {
     let realContentLength = ''
 
     destinationApp.post('/', (req, res) => {
-      const chunks = []
+      const chunks: Buffer[] = []
 
       req.on('data', (chunk) => {
         chunks.push(chunk)
@@ -229,6 +307,7 @@ context('network stubbing', () => {
       },
       hasInterceptor: true,
       getFixture,
+      matches: 1,
     })
 
     socket.toDriver.callsFake((_, event, data) => {
@@ -246,6 +325,9 @@ context('network stubbing', () => {
           state: netStubbingState,
           getFixture,
           args: [],
+          socket: {
+            toDriver () {},
+          },
         })
       }
     })
@@ -257,5 +339,159 @@ context('network stubbing', () => {
 
     expect(sendContentLength).to.eq(receivedContentLength)
     expect(sendContentLength).to.eq(realContentLength)
+  })
+
+  it('does not intercept requests to the dev server', async () => {
+    destinationApp.get('/__cypress/src/main.js', (req, res) => res.send('it worked'))
+
+    // setup an intercept that matches all requests
+    // and has a static response
+    netStubbingState.routes.push({
+      id: '1',
+      routeMatcher: {
+        url: '*',
+      },
+      hasInterceptor: false,
+      staticResponse: {
+        body: 'foo',
+      },
+      getFixture,
+      matches: 1,
+    })
+
+    config.devServerPublicPathRoute = '/__cypress/src'
+
+    // request to the dev server does NOT get intercepted
+    await supertest(app)
+    .get(`/http://localhost:${destinationPort}/__cypress/src/main.js`)
+    .then((res) => {
+      expect(res.status).to.eq(200)
+      expect(res.text).to.eq('it worked')
+    })
+
+    // request NOT to the dev server DOES get intercepted
+    await supertest(app)
+    .get(`/http://localhost:${destinationPort}/`)
+    .then((res) => {
+      expect(res.status).to.eq(200)
+      expect(res.text).to.eq('foo')
+    })
+  })
+
+  describe('CSP Headers', () => {
+    // Loop through valid CSP header names can verify that we handle them
+    [
+      'content-security-policy',
+      'Content-Security-Policy',
+      'content-security-policy-report-only',
+      'Content-Security-Policy-Report-Only',
+    ].forEach((headerName) => {
+      describe(`${headerName}`, () => {
+        it('does not add CSP header if injecting JS and original response had no CSP header', () => {
+          netStubbingState.routes.push({
+            id: '1',
+            routeMatcher: {
+              url: '*',
+            },
+            hasInterceptor: false,
+            staticResponse: {
+              body: '<foo>bar</foo>',
+            },
+            getFixture: async () => {},
+            matches: 1,
+          })
+
+          return supertest(app)
+          .get(`/http://localhost:${destinationPort}`)
+          .set('Accept', 'text/html,application/xhtml+xml')
+          .then((res) => {
+            expect(res.headers[headerName]).to.be.undefined
+            expect(res.headers[headerName.toLowerCase()]).to.be.undefined
+          })
+        })
+
+        it('removes CSP header by default if not injecting JS and original response had CSP header', () => {
+          return supertest(app)
+          .get(`/http://localhost:${destinationPort}/csp-header-strip?headerName=${headerName}`)
+          .then((res) => {
+            expect(res.headers[headerName]).to.be.undefined
+            expect(res.headers[headerName.toLowerCase()]).to.be.undefined
+          })
+        })
+
+        it('removes CSP header by default if injecting JS and original response had CSP header', () => {
+          return supertest(app)
+          .get(`/http://localhost:${destinationPort}/csp-header-strip?headerName=${headerName}`)
+          .then((res) => {
+            expect(res.headers[headerName]).to.be.undefined
+            expect(res.headers[headerName.toLowerCase()]).to.be.undefined
+          })
+        })
+
+        it('does not modify CSP header if not injecting JS and original response had CSP header', () => {
+          return supertest(app)
+          .get(`/http://localhost:${destinationPort}/csp-header-none?headerName=${headerName}`)
+          .then((res) => {
+            expect(res.headers[headerName.toLowerCase()]).to.equal('fake-directive fake-value')
+          })
+        })
+
+        it('does not modify a CSP header if injecting JS and original response had CSP header, but did not have a directive affecting script-src', () => {
+          return supertest(app)
+          .get(`/http://localhost:${destinationPort}/csp-header-none?headerName=${headerName}`)
+          .set('Accept', 'text/html,application/xhtml+xml')
+          .then((res) => {
+            expect(res.headers[headerName.toLowerCase()]).to.equal('fake-directive fake-value')
+          })
+        })
+
+        it('modifies a CSP header if injecting JS and original response had CSP header affecting script-src', () => {
+          return supertest(app)
+          .get(`/http://localhost:${destinationPort}/csp-header-single?headerName=${headerName}`)
+          .set('Accept', 'text/html,application/xhtml+xml')
+          .then((res) => {
+            expect(res.headers[headerName.toLowerCase()]).to.match(/^script-src 'self' localhost 'nonce-[^-A-Za-z0-9+/=]|=[^=]|={3,}'$/)
+          })
+        })
+
+        it('modifies CSP header if injecting JS and original response had multiple CSP headers and directives', () => {
+          return supertest(app)
+          .get(`/http://localhost:${destinationPort}/csp-header-multiple?headerName=${headerName}`)
+          .set('Accept', 'text/html,application/xhtml+xml')
+          .then((res) => {
+            expect(res.headers[headerName.toLowerCase()]).to.match(/^default-src 'self' 'nonce-[^-A-Za-z0-9+/=]|=[^=]|={3,}', script-src 'self' localhost 'nonce-[^-A-Za-z0-9+/=]|=[^=]|={3,}'$/)
+          })
+        })
+
+        if (headerName !== headerName.toLowerCase()) {
+          // Do not add a non-lowercase version of a CSP header, because most-restrictive is used
+          it('removes non-lowercase CSP header to avoid conflicts on unmodified CSP headers', () => {
+            return supertest(app)
+            .get(`/http://localhost:${destinationPort}/csp-header-none?headerName=${headerName}`)
+            .then((res) => {
+              expect(res.headers[headerName]).to.be.undefined
+            })
+          })
+
+          it('removes non-lowercase CSP header to avoid conflicts on modified CSP headers', () => {
+            return supertest(app)
+            .get(`/http://localhost:${destinationPort}/csp-header-single?headerName=${headerName}`)
+            .set('Accept', 'text/html,application/xhtml+xml')
+            .then((res) => {
+              expect(res.headers[headerName]).to.be.undefined
+            })
+          })
+
+          it('removes non-lowercase CSP header to avoid conflicts on multiple CSP headers', () => {
+            return supertest(app)
+            .get(`/http://localhost:${destinationPort}/csp-header-multiple?headerName=${headerName}`)
+            .set('Accept', 'text/html,application/xhtml+xml')
+            .then((res) => {
+              expect(res.headers[headerName]).to.be.undefined
+            })
+          })
+        }
+      })
+    })
   })
 })

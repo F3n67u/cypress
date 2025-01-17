@@ -2,6 +2,9 @@ declare global {
   interface Window {
     Element: typeof Element
     HTMLElement: typeof HTMLElement
+    HTMLFormElement: typeof HTMLFormElement
+    HTMLLinkElement: typeof HTMLLinkElement
+    HTMLScriptElement: typeof HTMLScriptElement
     HTMLInputElement: typeof HTMLInputElement
     HTMLSelectElement: typeof HTMLSelectElement
     HTMLButtonElement: typeof HTMLButtonElement
@@ -15,7 +18,7 @@ declare global {
   }
 
   interface Selection {
-    modify: Function
+    modify: (alter?: string | undefined, direction?: string | undefined, granularity?: string | undefined) => void
   }
 }
 

@@ -2,11 +2,19 @@ import $ from 'jquery'
 import _ from 'lodash'
 import $dom from '../dom'
 import $elements from '../dom/elements'
-import $Keyboard, { ModifiersEventOptions } from './keyboard'
+import $Keyboard, { Keyboard, ModifiersEventOptions } from './keyboard'
 import $selection from '../dom/selection'
 import debugFn from 'debug'
+import type { StateFunc } from '../cypress/state'
+import type { IFocused } from './focused'
+import type { ICypress } from '../cypress'
+import type { ElViewportPostion } from '../dom/coordinates'
 
 const debug = debugFn('cypress:driver:mouse')
+
+export type ForceEl = false | HTMLElement
+
+export type MouseCoords = { x?: number, y?: number}
 
 /**
  * @typedef Coords
@@ -15,7 +23,7 @@ const debug = debugFn('cypress:driver:mouse')
  * @property {Document} doc
  */
 
-const getLastHoveredEl = (state): HTMLElement | null => {
+const getLastHoveredEl = (state: StateFunc): HTMLElement | null => {
   let lastHoveredEl = state('mouseLastHoveredEl')
   const lastHoveredElAttached = lastHoveredEl && $elements.isAttachedEl(lastHoveredEl)
 
@@ -37,7 +45,7 @@ const defaultPointerDownUpOptions = {
   pressure: 0.5,
 }
 
-const getMouseCoords = (state) => {
+const getMouseCoords = (state: StateFunc) => {
   return state('mouseCoords')
 }
 
@@ -47,8 +55,11 @@ type DefaultMouseOptions = ModifiersEventOptions & CoordsEventOptions & {
   relatedTarget: HTMLElement | null
 }
 
-export const create = (state, keyboard, focused, Cypress) => {
+export const create = (state: StateFunc, keyboard: Keyboard, focused: IFocused, Cypress: ICypress) => {
   const isFirefox = Cypress.browser.family === 'firefox'
+  const isWebKit = Cypress.isBrowser('webkit')
+  // Chromium 116+ allows the simulated events to be sent to disabled elements so we need to explicitly exclude them
+  const isChromium116OrLater = Cypress.isBrowser({ family: 'chromium' }) && Cypress.browserMajorVersion() >= 116
 
   const sendPointerEvent = (el, evtOptions, evtName, bubbles = false, cancelable = false) => {
     const constructor = el.ownerDocument.defaultView.PointerEvent
@@ -64,14 +75,14 @@ export const create = (state, keyboard, focused, Cypress) => {
   }
 
   const sendPointerup = (el, evtOptions) => {
-    if (isFirefox && el.disabled) {
+    if ((isFirefox || isWebKit) && el.disabled) {
       return {}
     }
 
     return sendPointerEvent(el, evtOptions, 'pointerup', true, true)
   }
   const sendPointerdown = (el, evtOptions): {} | SentEvent => {
-    if (isFirefox && el.disabled) {
+    if ((isFirefox || isWebKit) && el.disabled) {
       return {}
     }
 
@@ -94,14 +105,14 @@ export const create = (state, keyboard, focused, Cypress) => {
   }
 
   const sendMouseup = (el, evtOptions) => {
-    if (isFirefox && el.disabled) {
+    if ((isFirefox || isWebKit || isChromium116OrLater) && el.disabled) {
       return {}
     }
 
     return sendMouseEvent(el, evtOptions, 'mouseup', true, true)
   }
   const sendMousedown = (el, evtOptions): {} | SentEvent => {
-    if (isFirefox && el.disabled) {
+    if ((isFirefox || isWebKit || isChromium116OrLater) && el.disabled) {
       return {}
     }
 
@@ -124,21 +135,21 @@ export const create = (state, keyboard, focused, Cypress) => {
   }
   const sendClick = (el, evtOptions, opts: { force?: boolean } = {}) => {
     // send the click event if firefox and force (needed for force check checkbox)
-    if (!opts.force && isFirefox && el.disabled) {
+    if (!opts.force && (isFirefox || isWebKit || isChromium116OrLater) && el.disabled) {
       return {}
     }
 
     return sendMouseEvent(el, evtOptions, 'click', true, true)
   }
   const sendDblclick = (el, evtOptions) => {
-    if (isFirefox && el.disabled) {
+    if ((isFirefox || isWebKit || isChromium116OrLater) && el.disabled) {
       return {}
     }
 
     return sendMouseEvent(el, evtOptions, 'dblclick', true, true)
   }
   const sendContextmenu = (el, evtOptions) => {
-    if (isFirefox && el.disabled) {
+    if ((isFirefox || isWebKit || isChromium116OrLater) && el.disabled) {
       return {}
     }
 
@@ -202,11 +213,7 @@ export const create = (state, keyboard, focused, Cypress) => {
       }, modifiersEventOptions, coordsEventOptions)
     },
 
-    /**
-     * @param {Coords} coords
-     * @param {HTMLElement} forceEl
-     */
-    move (fromElViewport, forceEl?) {
+    move (fromElViewport: ElViewportPostion, forceEl?: ForceEl) {
       debug('mouse.move', fromElViewport)
 
       const lastHoveredEl = getLastHoveredEl(state)
@@ -238,7 +245,7 @@ export const create = (state, keyboard, focused, Cypress) => {
      * - send move events to elToHover (bubbles)
      * - elLastHovered = elToHover
      */
-    _moveEvents (el, coords) {
+    _moveEvents (el: HTMLElement, coords: ElViewportPostion) {
       // events are not fired on disabled elements, so we don't have to take that into account
       const win = $dom.getWindowByElement(el)
       const { x, y } = coords
@@ -383,7 +390,7 @@ export const create = (state, keyboard, focused, Cypress) => {
      * @param {Coords} coords
      * @returns {HTMLElement}
      */
-    getElAtCoords ({ x, y, doc }) {
+    getElAtCoords ({ x, y, doc }: ElViewportPostion) {
       const el = $dom.elementFromPoint(doc, x, y)
 
       return el
@@ -558,6 +565,21 @@ export const create = (state, keyboard, focused, Cypress) => {
         // Only send click event if mousedown element is not detached.
         if ($elements.isDetachedEl(mouseDownPhase.targetEl) || $elements.isDetached(mouseUpPhase.targetEl)) {
           return { skipClickEventReason: 'element was detached' }
+        }
+
+        // Only send click event if element is not disabled.
+        // First find an parent element that can actually be disabled
+        const findParentThatCanBeDisabled = (el: HTMLElement): HTMLElement | null => {
+          const elementsThatCanBeDisabled = ['button', 'input', 'select', 'textarea', 'optgroup', 'option', 'fieldset']
+
+          return elementsThatCanBeDisabled.includes($elements.getTagName(el)) ? el : null
+        }
+
+        const parentThatCanBeDisabled = $elements.findParent(mouseUpPhase.targetEl, findParentThatCanBeDisabled) || $elements.findParent(mouseDownPhase.targetEl, findParentThatCanBeDisabled)
+
+        // Then check if parent is indeed disabled
+        if (parentThatCanBeDisabled !== null && $elements.isDisabled($(parentThatCanBeDisabled))) {
+          return { skipClickEventReason: 'element was disabled' }
         }
 
         const commonAncestor = mouseUpPhase.targetEl &&

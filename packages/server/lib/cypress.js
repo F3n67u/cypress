@@ -13,18 +13,33 @@ const Promise = require('bluebird')
 const debug = require('debug')('cypress:server:cypress')
 const { getPublicConfigKeys } = require('@packages/config')
 const argsUtils = require('./util/args')
-const chalk = require('chalk')
-const { openProject } = require('../lib/open_project')
+const { telemetry } = require('@packages/telemetry')
+const { getCtx, hasCtx } = require('@packages/data-context')
 
 const warning = (code, args) => {
   return require('./errors').warning(code, args)
 }
 
-const exit = (code = 0) => {
+const exit = async (code = 0) => {
   // TODO: we shouldn't have to do this
   // but cannot figure out how null is
   // being passed into exit
   debug('about to exit with code', code)
+
+  if (hasCtx()) {
+    await getCtx().lifecycleManager.mainProcessWillDisconnect().catch((err) => {
+      debug('mainProcessWillDisconnect errored with: ', err)
+    })
+  }
+
+  const span = telemetry.getSpan('cypress')
+
+  span?.setAttribute('exitCode', code)
+  span?.end()
+
+  await telemetry.shutdown().catch((err) => {
+    debug('telemetry shutdown errored with: ', err)
+  })
 
   return process.exit(code)
 }
@@ -108,15 +123,12 @@ module.exports = {
 
         debug('electron open arguments %o', args)
 
-        return cypressElectron.open('.', args, fn)
+        // const mainEntryFile = require.main.filename
+        const serverMain = require('./cwd')()
+
+        return cypressElectron.open(serverMain, args, fn)
       })
     })
-  },
-
-  openProject (options) {
-    // this code actually starts a project
-    // and is spawned from nodemon
-    openProject.open(options.project, options)
   },
 
   start (argv = []) {
@@ -141,6 +153,8 @@ module.exports = {
 
     debug('from argv %o got options %o', argv, options)
 
+    telemetry.exporter()?.attachRecordKey(options.key)
+
     if (options.headless) {
       // --headless is same as --headed false
       if (options.headed) {
@@ -160,7 +174,10 @@ module.exports = {
     }
 
     // make sure we have the appData folder
-    return require('./util/app_data').ensure()
+    return Promise.all([
+      require('./util/app_data').ensure(),
+      require('./util/electron-app').setRemoteDebuggingPort(),
+    ])
     .then(() => {
       // else determine the mode by
       // the passed in arguments / options
@@ -173,10 +190,6 @@ module.exports = {
         mode = 'smokeTest'
       } else if (options.returnPkg) {
         mode = 'returnPkg'
-      } else if (options.logs) {
-        mode = 'logs'
-      } else if (options.clearLogs) {
-        mode = 'clearLogs'
       } else if (!(options.exitWithCode == null)) {
         mode = 'exitWithCode'
       } else if (options.runProject) {
@@ -228,18 +241,6 @@ module.exports = {
         }).then(exit0)
         .catch(exitErr)
 
-      case 'logs':
-        // print the logs + exit
-        return require('./gui/logs').print()
-        .then(exit0)
-        .catch(exitErr)
-
-      case 'clearLogs':
-        // clear the logs + exit
-        return require('./gui/logs').clear()
-        .then(exit0)
-        .catch(exitErr)
-
       case 'exitWithCode':
         return require('./modes/exit')(options)
         .then(exit)
@@ -255,7 +256,7 @@ module.exports = {
 
             if (isCanceled) {
               // eslint-disable-next-line no-console
-              console.log(chalk.magenta('\n  Exiting with non-zero exit code because the run was canceled.'))
+              console.log(require('chalk').magenta('\n  Exiting with non-zero exit code because the run was canceled.'))
 
               return 1
             }
@@ -268,10 +269,6 @@ module.exports = {
 
       case 'interactive':
         return this.runElectron(mode, options)
-
-      case 'openProject':
-        // open + start the project
-        return this.openProject(options)
 
       default:
         throw new Error(`Cannot start. Invalid mode: '${mode}'`)

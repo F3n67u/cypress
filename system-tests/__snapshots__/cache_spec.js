@@ -7,14 +7,14 @@ exports['e2e cache passes 1'] = `
   ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
   │ Cypress:    1.2.3                                                                              │
   │ Browser:    FooBrowser 88                                                                      │
-  │ Specs:      1 found (cache_spec.js)                                                            │
-  │ Searched:   cypress/integration/cache_spec.js                                                  │
+  │ Specs:      1 found (cache.cy.js)                                                              │
+  │ Searched:   cypress/e2e/cache.cy.js                                                            │
   └────────────────────────────────────────────────────────────────────────────────────────────────┘
 
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────
                                                                                                     
-  Running:  cache_spec.js                                                                   (1 of 1)
+  Running:  cache.cy.js                                                                     (1 of 1)
 
 
   caching
@@ -36,16 +36,10 @@ exports['e2e cache passes 1'] = `
   │ Pending:      0                                                                                │
   │ Skipped:      0                                                                                │
   │ Screenshots:  0                                                                                │
-  │ Video:        true                                                                             │
+  │ Video:        false                                                                            │
   │ Duration:     X seconds                                                                        │
-  │ Spec Ran:     cache_spec.js                                                                    │
+  │ Spec Ran:     cache.cy.js                                                                      │
   └────────────────────────────────────────────────────────────────────────────────────────────────┘
-
-
-  (Video)
-
-  -  Started processing:  Compressing to 32 CRF                                                     
-  -  Finished processing: /XXX/XXX/XXX/cypress/videos/cache_spec.js.mp4                   (X second)
 
 
 ====================================================================================================
@@ -55,7 +49,7 @@ exports['e2e cache passes 1'] = `
 
        Spec                                              Tests  Passing  Failing  Pending  Skipped  
   ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
-  │ ✔  cache_spec.js                            XX:XX        4        4        -        -        - │
+  │ ✔  cache.cy.js                              XX:XX        4        4        -        -        - │
   └────────────────────────────────────────────────────────────────────────────────────────────────┘
     ✔  All specs passed!                        XX:XX        4        4        -        -        -  
 

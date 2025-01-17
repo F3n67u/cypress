@@ -5,14 +5,15 @@ describe('e2e typescript in spec and support file', function () {
 
   it('spec passes', function () {
     return systemTests.exec(this, {
-      spec: 'typescript_passing_spec.ts',
+      project: 'coffee-react-interop',
+      spec: 'typescript_passing.cy.ts',
       snapshot: true,
     })
   })
 
   it('spec fails with syntax error', function () {
     return systemTests.exec(this, {
-      spec: 'typescript_syntax_error_spec.ts',
+      spec: 'typescript_syntax_error.cy.ts',
       snapshot: true,
       expectedExitCode: 1,
       onStdout: (stdout) => {
@@ -27,6 +28,14 @@ describe('e2e typescript in spec and support file', function () {
     return systemTests.exec(this, {
       project: 'ts-proj',
       snapshot: true,
+    })
+  })
+
+  it('project with custom supportFile passes', function () {
+    return systemTests.exec(this, {
+      project: 'ts-proj-custom-names',
+      snapshot: true,
+      expectedExitCode: 0,
     })
   })
 

@@ -1,423 +1,349 @@
 require('../../../spec_helper')
 
 const _ = require('lodash')
-const snapshot = require('snap-shot-it')
-const Promise = require('bluebird')
 
-const preprocessor = require(`${root}../../lib/plugins/child/preprocessor`)
-const task = require(`${root}../../lib/plugins/child/task`)
-const util = require(`${root}../../lib/plugins/util`)
-const resolve = require(`${root}../../lib/util/resolve`)
-const browserUtils = require(`${root}../../lib/browsers/utils`)
-const Fixtures = require('@tooling/system-tests/lib/fixtures')
-const tsNodeUtil = require(`${root}../../lib/util/ts_node`)
-
-const runPlugins = require(`${root}../../lib/plugins/child/run_plugins`)
-
-const colorCodeRe = /\[[0-9;]+m/gm
-const pathRe = /\/?([a-z0-9_-]+\/)*[a-z0-9_-]+\/([a-z_]+\.\w+)[:0-9]+/gmi
-
-const deferred = () => {
-  let reject
-  let resolve
-  const promise = new Promise((_resolve, _reject) => {
-    resolve = _resolve
-    reject = _reject
-  })
-
-  return { promise, resolve, reject }
-}
-
-const withoutColorCodes = (str) => {
-  return str.replace(colorCodeRe, '<color-code>')
-}
-const withoutPath = (str) => {
-  return str.replace(pathRe, '<path>$2)')
-}
+const preprocessor = require('../../../../lib/plugins/child/preprocessor')
+const util = require('../../../../lib/plugins/util')
+const resolve = require('../../../../lib/util/resolve')
+const browserUtils = require('../../../../lib/browsers/utils')
+const { RunPlugins } = require('../../../../lib/plugins/child/run_plugins')
+const crossOrigin = require('../../../../lib/plugins/child/cross_origin')
 
 describe('lib/plugins/child/run_plugins', () => {
-  beforeEach(function () {
-    runPlugins.__reset()
+  let ipc
+  let runPlugins
 
-    this.ipc = {
+  beforeEach(() => {
+    ipc = {
       send: sinon.spy(),
       on: sinon.stub(),
       removeListener: sinon.spy(),
     }
+
+    runPlugins = new RunPlugins(ipc, 'proj-root', 'cypress.config.js')
   })
 
   afterEach(() => {
-    mockery.deregisterMock('plugins-file')
-    mockery.deregisterSubstitute('plugins-file')
     mockery.deregisterMock('@cypress/webpack-batteries-included-preprocessor')
   })
 
-  it('sends error message if pluginsFile is missing', function () {
-    mockery.registerSubstitute('plugins-file', '/does/not/exist.coffee')
-    runPlugins(this.ipc, 'plugins-file', 'proj-root')
-    expect(this.ipc.send).to.be.calledWith('load:error', 'PLUGINS_FILE_ERROR', 'plugins-file')
+  context('#runSetupNodeEvents', () => {
+    let config
+    let setupNodeEventsFn
 
-    return snapshot(this.ipc.send.lastCall.args[3].split('\n')[0])
-  })
-
-  it('sends error message if requiring pluginsFile errors', function () {
-    // path for substitute is relative to lib/plugins/child/plugins_child.js
-    mockery.registerSubstitute(
-      'plugins-file',
-      Fixtures.path('server/throws_error.js'),
-    )
-
-    runPlugins(this.ipc, 'plugins-file', 'proj-root')
-    expect(this.ipc.send).to.be.calledWith('load:error', 'PLUGINS_FILE_ERROR', 'plugins-file')
-
-    return snapshot(this.ipc.send.lastCall.args[3].split('\n')[0])
-  })
-
-  it('sends error message if pluginsFile has syntax error', function () {
-    // path for substitute is relative to lib/plugins/child/plugins_child.js
-    mockery.registerSubstitute(
-      'plugins-file',
-      Fixtures.path('server/syntax_error.js'),
-    )
-
-    runPlugins(this.ipc, 'plugins-file', 'proj-root')
-    expect(this.ipc.send).to.be.calledWith('load:error', 'PLUGINS_FILE_ERROR', 'plugins-file')
-
-    return snapshot(withoutColorCodes(withoutPath(this.ipc.send.lastCall.args[3].replace(/( +at[^$]+$)+/g, '[stack trace]'))))
-  })
-
-  it('sends error message if pluginsFile does not export a function', function () {
-    mockery.registerMock('plugins-file', null)
-    runPlugins(this.ipc, 'plugins-file', 'proj-root')
-    expect(this.ipc.send).to.be.calledWith('load:error', 'PLUGINS_DIDNT_EXPORT_FUNCTION', 'plugins-file')
-
-    return snapshot(JSON.stringify(this.ipc.send.lastCall.args[3]))
-  })
-
-  describe('typescript registration', () => {
     beforeEach(() => {
-      sinon.stub(tsNodeUtil, 'register')
-      sinon.stub(resolve, 'typescript').returns('/path/to/typescript.js')
-    })
+      config = { projectRoot: '/project/root' }
 
-    it('registers ts-node', function () {
-      runPlugins(this.ipc, '/path/to/plugins/file.js', 'proj-root')
-
-      expect(tsNodeUtil.register).to.be.calledWith(
-        'proj-root',
-        '/path/to/plugins/file.js',
-      )
-    })
-
-    it('only registers ts-node once', function () {
-      runPlugins(this.ipc, '/path/to/plugins/file.js', 'proj-root')
-      runPlugins(this.ipc, '/path/to/plugins/file.js', 'proj-root')
-
-      expect(tsNodeUtil.register).to.be.calledOnce
-    })
-  })
-
-  describe('on \'load\' message', () => {
-    it('sends loaded event with registrations', function () {
-      const pluginsDeferred = deferred()
-      const config = { projectRoot: '/project/root' }
-
-      mockery.registerMock('plugins-file', (on) => {
+      setupNodeEventsFn = sinon.stub().callsFake((on) => {
         on('after:screenshot', () => {})
         on('task', {})
 
-        return config
-      })
-
-      runPlugins(this.ipc, 'plugins-file', 'proj-root')
-
-      this.ipc.on.withArgs('load').yield(config)
-
-      pluginsDeferred.resolve(config)
-
-      return Promise
-      .delay(10)
-      .then(() => {
-        expect(this.ipc.send).to.be.calledWith('loaded', config)
-        const registrations = this.ipc.send.lastCall.args[2]
-
-        expect(registrations).to.have.length(5)
-
-        expect(_.map(registrations, 'event')).to.eql([
-          '_get:task:body',
-          '_get:task:keys',
-          'after:screenshot',
-          'task',
-          'file:preprocessor',
-        ])
+        return { includeShadowDom: true }
       })
     })
 
-    it('registers default preprocessor if none registered by user', function () {
-      const pluginsDeferred = deferred()
-      const config = { projectRoot: '/project/root' }
-      const webpackPreprocessorFn = sinon.spy()
-      const webpackPreprocessor = sinon.stub().returns(webpackPreprocessorFn)
+    describe('#load', () => {
+      it('calls setupNodeEventsFn with `registerChildEvent` function and initial config', async () => {
+        await runPlugins.runSetupNodeEvents(config, setupNodeEventsFn)
 
-      sinon.stub(resolve, 'typescript').returns('/path/to/typescript.js')
-
-      mockery.registerMock('plugins-file', (on) => {
-        on('after:screenshot', () => {})
-        on('task', {})
-
-        return config
+        expect(setupNodeEventsFn).to.be.calledWith(sinon.match.func, config)
       })
 
-      mockery.registerMock('@cypress/webpack-batteries-included-preprocessor', webpackPreprocessor)
-      runPlugins(this.ipc, 'plugins-file', 'proj-root')
+      it('registers default preprocessor if none registered by user', async () => {
+        const webpackPreprocessorFn = sinon.spy()
+        const webpackPreprocessor = sinon.stub().returns(webpackPreprocessorFn)
 
-      this.ipc.on.withArgs('load').yield(config)
+        sinon.stub(resolve, 'typescript').returns('/path/to/typescript.js')
+        mockery.registerMock('@cypress/webpack-batteries-included-preprocessor', webpackPreprocessor)
 
-      pluginsDeferred.resolve(config)
+        await runPlugins.runSetupNodeEvents(config, setupNodeEventsFn)
 
-      return Promise
-      .delay(10)
-      .then(() => {
-        const registrations = this.ipc.send.lastCall.args[2]
+        const registrations = ipc.send.withArgs('setupTestingType:reply').args[0][1].registrations
 
         expect(webpackPreprocessor).to.be.calledWith({
           typescript: '/path/to/typescript.js',
         })
+
+        expect(_.last(registrations)).to.eql({
+          event: 'file:preprocessor',
+          eventId: 5,
+        })
+
+        ipc.on.withArgs('execute:plugins').yield('file:preprocessor', { eventId: 5, invocationId: '00' }, ['arg1', 'arg2'])
+        expect(webpackPreprocessorFn, 'webpackPreprocessor').to.be.called
+      })
+
+      it('does not register default preprocessor if registered by user', async () => {
+        const userPreprocessorFn = sinon.spy()
+        const webpackPreprocessor = sinon.spy()
+
+        sinon.stub(resolve, 'typescript').returns('/path/to/typescript.js')
+
+        const setupNodeEventsFn = (on) => {
+          on('after:screenshot', () => {})
+          on('file:preprocessor', userPreprocessorFn)
+          on('task', {})
+
+          return config
+        }
+
+        mockery.registerMock('@cypress/webpack-batteries-included-preprocessor', webpackPreprocessor)
+        await runPlugins.runSetupNodeEvents(config, setupNodeEventsFn)
+
+        const registrations = ipc.send.withArgs('setupTestingType:reply').args[0][1].registrations
+
+        expect(webpackPreprocessor).not.to.be.called
 
         expect(registrations[4]).to.eql({
           event: 'file:preprocessor',
           eventId: 4,
         })
 
-        this.ipc.on.withArgs('execute').yield('file:preprocessor', { eventId: 4, invocationId: '00' }, ['arg1', 'arg2'])
-        expect(webpackPreprocessorFn, 'webpackPreprocessor').to.be.called
-      })
-    })
-
-    it('does not register default preprocessor if registered by user', function () {
-      const pluginsDeferred = deferred()
-      const config = { projectRoot: '/project/root' }
-      const userPreprocessorFn = sinon.spy()
-      const webpackPreprocessor = sinon.spy()
-
-      sinon.stub(resolve, 'typescript').returns('/path/to/typescript.js')
-
-      mockery.registerMock('plugins-file', (on) => {
-        on('after:screenshot', () => {})
-        on('file:preprocessor', userPreprocessorFn)
-        on('task', {})
-
-        return config
-      })
-
-      mockery.registerMock('@cypress/webpack-batteries-included-preprocessor', webpackPreprocessor)
-      runPlugins(this.ipc, 'plugins-file', 'proj-root')
-
-      this.ipc.on.withArgs('load').yield(config)
-
-      pluginsDeferred.resolve(config)
-
-      return Promise
-      .delay(10)
-      .then(() => {
-        const registrations = this.ipc.send.lastCall.args[2]
-
-        expect(webpackPreprocessor).not.to.be.called
-
-        expect(registrations[3]).to.eql({
-          event: 'file:preprocessor',
-          eventId: 3,
-        })
-
-        this.ipc.on.withArgs('execute').yield('file:preprocessor', { eventId: 3, invocationId: '00' }, ['arg1', 'arg2'])
+        ipc.on.withArgs('execute:plugins').yield('file:preprocessor', { eventId: 4, invocationId: '00' }, ['arg1', 'arg2'])
         expect(userPreprocessorFn).to.be.called
       })
-    })
 
-    it('sends error if pluginsFile function rejects the promise', function (done) {
-      const err = new Error('foo')
-      const pluginsFn = sinon.stub().rejects(err)
+      it(`sends 'setupTestingType:reply' event with modified config, registrations, and requires`, async () => {
+        await runPlugins.runSetupNodeEvents(config, setupNodeEventsFn)
 
-      mockery.registerMock('plugins-file', pluginsFn)
-      this.ipc.on.withArgs('load').yields({})
-      runPlugins(this.ipc, 'plugins-file', 'proj-root')
+        expect(ipc.send).to.be.calledWith('setupTestingType:reply')
 
-      this.ipc.send = _.once((event, errorType, pluginsFile, stack) => {
-        expect(event).to.eq('load:error')
-        expect(errorType).to.eq('PLUGINS_FUNCTION_ERROR')
-        expect(pluginsFile).to.eq('plugins-file')
-        expect(stack).to.eq(err.stack)
+        const { setupConfig, registrations, requires } = ipc.send.withArgs('setupTestingType:reply').args[0][1]
 
-        return done()
+        expect(setupConfig).to.eql({ includeShadowDom: true })
+
+        expect(registrations).to.have.length(6)
+        expect(_.map(registrations, 'event')).to.eql([
+          '_get:task:body',
+          '_get:task:keys',
+          '_process:cross:origin:callback',
+          'after:screenshot',
+          'task',
+          'file:preprocessor',
+        ])
+
+        expect(requires).to.be.an('array')
+      })
+
+      it('sends error if setupNodeEvents function rejects the promise', async () => {
+        const err = new Error('foo')
+        const setupNodeEventsFn = sinon.stub().rejects(err)
+
+        await runPlugins.runSetupNodeEvents(config, setupNodeEventsFn)
+
+        expect(ipc.send).to.be.calledWith('setupTestingType:error')
+
+        const error = ipc.send.withArgs('setupTestingType:error').args[0][1]
+
+        expect(error.originalError.message).to.equal('foo')
       })
     })
 
-    it('calls function exported by pluginsFile with register function and config', function () {
-      const pluginsFn = sinon.spy()
+    describe(`on 'execute:plugins' message`, () => {
+      let onFilePreprocessor
+      let afterBrowserLaunch
+      let beforeBrowserLaunch
+      let taskRequested
+      let setupNodeEventsFn
 
-      mockery.registerMock('plugins-file', pluginsFn)
-      runPlugins(this.ipc, 'plugins-file', 'proj-root')
-      const config = {}
+      beforeEach(async () => {
+        sinon.stub(preprocessor, 'wrap')
 
-      this.ipc.on.withArgs('load').yield(config)
-      expect(pluginsFn).to.be.called
-      expect(pluginsFn.lastCall.args[0]).to.be.a('function')
+        onFilePreprocessor = sinon.stub().resolves()
+        afterBrowserLaunch = sinon.stub().resolves()
+        beforeBrowserLaunch = sinon.stub().resolves()
+        taskRequested = sinon.stub().resolves('foo')
 
-      expect(pluginsFn.lastCall.args[1]).to.equal(config)
-    })
-
-    it('sends error if pluginsFile function throws an error', function (done) {
-      const err = new Error('foo')
-
-      mockery.registerMock('plugins-file', () => {
-        throw err
+        setupNodeEventsFn = (on) => {
+          on('file:preprocessor', onFilePreprocessor)
+          on('after:browser:launch', afterBrowserLaunch)
+          on('before:browser:launch', beforeBrowserLaunch)
+          on('task', taskRequested)
+        }
       })
 
-      runPlugins(this.ipc, 'plugins-file', 'proj-root')
-      this.ipc.on.withArgs('load').yield({})
-
-      this.ipc.send = _.once((event, errorType, pluginsFile, stack) => {
-        expect(event).to.eq('load:error')
-        expect(errorType).to.eq('PLUGINS_FUNCTION_ERROR')
-        expect(pluginsFile).to.eq('plugins-file')
-        expect(stack).to.eq(err.stack)
-
-        return done()
-      })
-    })
-  })
-
-  describe('on \'execute\' message', () => {
-    beforeEach(function () {
-      sinon.stub(preprocessor, 'wrap')
-
-      this.onFilePreprocessor = sinon.stub().resolves()
-      this.beforeBrowserLaunch = sinon.stub().resolves()
-      this.taskRequested = sinon.stub().resolves('foo')
-
-      const pluginsFn = (register) => {
-        register('file:preprocessor', this.onFilePreprocessor)
-        register('before:browser:launch', this.beforeBrowserLaunch)
-
-        return register('task', this.taskRequested)
-      }
-
-      mockery.registerMock('plugins-file', pluginsFn)
-
-      runPlugins(this.ipc, 'plugins-file', 'proj-root')
-
-      return this.ipc.on.withArgs('load').yield({})
-    })
-
-    context('file:preprocessor', () => {
-      beforeEach(function () {
-        this.ids = { eventId: 0, invocationId: '00' }
-      })
-
-      it('calls preprocessor handler', function () {
+      context('file:preprocessor', () => {
+        const ids = { eventId: 0, invocationId: '00' }
         const args = ['arg1', 'arg2']
 
-        this.ipc.on.withArgs('execute').yield('file:preprocessor', this.ids, args)
-        expect(preprocessor.wrap).to.be.called
-        expect(preprocessor.wrap.lastCall.args[0]).to.equal(this.ipc)
-        expect(preprocessor.wrap.lastCall.args[1]).to.be.a('function')
-        expect(preprocessor.wrap.lastCall.args[2]).to.equal(this.ids)
+        beforeEach(async () => {
+          await runPlugins.runSetupNodeEvents(config, setupNodeEventsFn)
 
-        expect(preprocessor.wrap.lastCall.args[3]).to.equal(args)
+          ipc.on.withArgs('execute:plugins').yield('file:preprocessor', ids, args)
+        })
+
+        it('calls preprocessor handler', () => {
+          expect(preprocessor.wrap).to.be.called
+          expect(preprocessor.wrap.lastCall.args[0]).to.equal(ipc)
+          expect(preprocessor.wrap.lastCall.args[1]).to.be.a('function')
+          expect(preprocessor.wrap.lastCall.args[2]).to.equal(ids)
+          expect(preprocessor.wrap.lastCall.args[3]).to.equal(args)
+        })
+
+        it('invokes registered function when invoked by handler', () => {
+          preprocessor.wrap.lastCall.args[1](3, ['one', 'two'])
+
+          expect(onFilePreprocessor).to.be.calledWith('one', 'two')
+        })
       })
 
-      it('invokes registered function when invoked by handler', function () {
-        this.ipc.on.withArgs('execute').yield('file:preprocessor', this.ids, [])
-        preprocessor.wrap.lastCall.args[1](2, ['one', 'two'])
+      context('before:browser:launch', () => {
+        let args
+        const ids = { eventId: 1, invocationId: '00' }
 
-        expect(this.onFilePreprocessor).to.be.calledWith('one', 'two')
-      })
-    })
+        beforeEach(async () => {
+          sinon.stub(util, 'wrapChildPromise')
 
-    context('before:browser:launch', () => {
-      beforeEach(function () {
-        sinon.stub(util, 'wrapChildPromise')
+          await runPlugins.runSetupNodeEvents(config, setupNodeEventsFn)
 
-        const browser = {}
-        const launchOptions = browserUtils.getDefaultLaunchOptions({})
+          const browser = {}
+          const launchOptions = browserUtils.getDefaultLaunchOptions({})
 
-        this.args = [browser, launchOptions]
-        this.ids = { eventId: 1, invocationId: '00' }
-      })
+          args = [browser, launchOptions]
 
-      it('wraps child promise', function () {
-        this.ipc.on.withArgs('execute').yield('before:browser:launch', this.ids, this.args)
-        expect(util.wrapChildPromise).to.be.called
-        expect(util.wrapChildPromise.lastCall.args[0]).to.equal(this.ipc)
-        expect(util.wrapChildPromise.lastCall.args[1]).to.be.a('function')
-        expect(util.wrapChildPromise.lastCall.args[2]).to.equal(this.ids)
+          ipc.on.withArgs('execute:plugins').yield('before:browser:launch', ids, args)
+        })
 
-        expect(util.wrapChildPromise.lastCall.args[3]).to.equal(this.args)
-      })
+        it('wraps child promise', () => {
+          expect(util.wrapChildPromise).to.be.calledWith(ipc, sinon.match.func, ids, args)
+        })
 
-      it('invokes registered function when invoked by handler', function () {
-        this.ipc.on.withArgs('execute').yield('before:browser:launch', this.ids, this.args)
-        util.wrapChildPromise.lastCall.args[1](3, this.args)
+        it('invokes registered function when invoked by handler', () => {
+          // console.log(util.wrapChildPromise.withArgs(ipc, sinon.match.func, ids, args).args)
+          util.wrapChildPromise.withArgs(ipc, sinon.match.func, ids, args).args[0][1](5, args)
 
-        expect(this.beforeBrowserLaunch).to.be.calledWith(...this.args)
-      })
-    })
-
-    context('task', () => {
-      beforeEach(function () {
-        sinon.stub(task, 'wrap')
-        this.ids = { eventId: 5, invocationId: '00' }
+          expect(beforeBrowserLaunch).to.be.calledWith(...args)
+        })
       })
 
-      it('calls task handler', function () {
-        const args = ['arg1']
+      context('after:browser:launch', () => {
+        let args
+        const ids = { eventId: 2, invocationId: '00' }
 
-        this.ipc.on.withArgs('execute').yield('task', this.ids, args)
-        expect(task.wrap).to.be.called
-        expect(task.wrap.lastCall.args[0]).to.equal(this.ipc)
-        expect(task.wrap.lastCall.args[1]).to.be.an('object')
-        expect(task.wrap.lastCall.args[2]).to.equal(this.ids)
+        beforeEach(async () => {
+          sinon.stub(util, 'wrapChildPromise')
 
-        expect(task.wrap.lastCall.args[3]).to.equal(args)
+          await runPlugins.runSetupNodeEvents(config, setupNodeEventsFn)
+
+          const browser = {}
+          const launchOptions = browserUtils.getDefaultLaunchOptions({})
+
+          args = [browser, launchOptions]
+
+          ipc.on.withArgs('execute:plugins').yield('after:browser:launch', ids, args)
+        })
+
+        it('wraps child promise', () => {
+          expect(util.wrapChildPromise).to.be.called
+          expect(util.wrapChildPromise.lastCall.args[0]).to.equal(ipc)
+          expect(util.wrapChildPromise.lastCall.args[1]).to.be.a('function')
+          expect(util.wrapChildPromise.lastCall.args[2]).to.equal(ids)
+          expect(util.wrapChildPromise.lastCall.args[3]).to.equal(args)
+        })
+
+        it('invokes registered function when invoked by handler', () => {
+          util.wrapChildPromise.lastCall.args[1](4, args)
+
+          expect(afterBrowserLaunch).to.be.calledWith(...args)
+        })
+      })
+
+      context('_process:cross:origin:callback', () => {
+        it('calls processCallback with args', async () => {
+          const ids = { eventId: '2' }
+
+          sinon.stub(crossOrigin, 'processCallback')
+
+          await runPlugins.runSetupNodeEvents({}, setupNodeEventsFn)
+          await runPlugins.execute('_process:cross:origin:callback', ids, ['arg1', 'arg2'])
+
+          expect(crossOrigin.processCallback).to.be.calledWith('arg1', 'arg2')
+        })
       })
     })
   })
 
-  describe('errors', () => {
-    beforeEach(function () {
-      mockery.registerMock('plugins-file', () => {})
-      sinon.stub(process, 'on')
+  context('#invoke', () => {
+    it('calls the handler for the specified eventId with the specified args', () => {
+      const handler = sinon.spy()
 
-      this.err = {
-        name: 'error name',
-        message: 'error message',
-      }
+      runPlugins.registeredEventsById['id-1'] = { handler }
+      runPlugins.invoke('id-1', [1, 2, 3])
 
-      return runPlugins(this.ipc, 'plugins-file', 'proj-root')
+      expect(handler).to.be.calledWith(1, 2, 3)
+    })
+  })
+
+  describe('tasks', () => {
+    const events = {
+      'the:task': sinon.stub().returns('result 1'),
+      'another:task': sinon.stub().returns('result 2'),
+      'a:third:task' () {
+        return 'foo'
+      },
+    }
+    const ids = {}
+
+    beforeEach(async () => {
+      sinon.stub(util, 'wrapChildPromise')
+
+      const setupNodeEventsFn = sinon.stub().callsFake((on) => {
+        on('task', events)
+      })
+
+      await runPlugins.runSetupNodeEvents({}, setupNodeEventsFn)
     })
 
-    it('sends the serialized error via ipc on process uncaughtException', function () {
-      process.on.withArgs('uncaughtException').yield(this.err)
+    context('.taskGetBody', () => {
+      it('returns the stringified body of the event handler', () => {
+        runPlugins.taskGetBody(ids, ['a:third:task'])
+        expect(util.wrapChildPromise).to.be.called
+        const result = util.wrapChildPromise.lastCall.args[1]('1')
 
-      expect(this.ipc.send).to.be.calledWith('error', this.err)
+        expect(result.replace(/\s+/g, '')).to.equal('\'a:third:task\'(){return\'foo\'}')
+      })
+
+      it('returns an empty string if event handler cannot be found', () => {
+        runPlugins.taskGetBody(ids, ['non:existent'])
+        expect(util.wrapChildPromise).to.be.called
+        const result = util.wrapChildPromise.lastCall.args[1]('1')
+
+        expect(result).to.equal('')
+      })
     })
 
-    it('sends the serialized error via ipc on process unhandledRejection', function () {
-      process.on.withArgs('unhandledRejection').yield(this.err)
+    context('.taskGetKeys', () => {
+      it('returns the registered task keys', () => {
+        runPlugins.taskGetKeys(ipc, this.events, ids)
+        expect(util.wrapChildPromise).to.be.called
+        const result = util.wrapChildPromise.lastCall.args[1]('1')
 
-      expect(this.ipc.send).to.be.calledWith('error', this.err)
+        expect(result).to.eql(['the:task', 'another:task', 'a:third:task'])
+      })
     })
 
-    it('sends the serialized Bluebird error via ipc on process unhandledRejection', function () {
-      process.on.withArgs('unhandledRejection').yield({ reason: this.err })
+    context('.taskExecute', () => {
+      it('passes through ipc and ids', () => {
+        runPlugins.taskExecute(ids, ['the:task'])
+        expect(util.wrapChildPromise).to.be.called
+        expect(util.wrapChildPromise.lastCall.args[0]).to.be.equal(ipc)
+        expect(util.wrapChildPromise.lastCall.args[2]).to.be.equal(ids)
+      })
 
-      expect(this.ipc.send).to.be.calledWith('error', this.err)
-    })
+      it('invokes the callback for the given task if it exists and returns the result', () => {
+        runPlugins.taskExecute(ids, ['the:task', 'the:arg'])
 
-    it('sends the serialized OpenSSL error via ipc on process unhandledRejection', function () {
-      process.on.withArgs('unhandledRejection').yield({ ...this.err, reason: 'reason' })
+        const result = util.wrapChildPromise.lastCall.args[1]('3', ['the:arg'])
 
-      expect(this.ipc.send).to.be.calledWith('error', this.err)
+        expect(events['the:task']).to.be.calledWith('the:arg')
+        expect(result).to.equal('result 1')
+      })
+
+      it('returns __cypress_unhandled__ if the task does not exist', () => {
+        runPlugins.taskExecute(ids, ['nope'])
+
+        expect(util.wrapChildPromise.lastCall.args[1]('1')).to.equal('__cypress_unhandled__')
+      })
     })
   })
 })

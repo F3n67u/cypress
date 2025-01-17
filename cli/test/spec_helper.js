@@ -5,7 +5,9 @@ const sinon = require('sinon')
 const mockfs = require('mock-fs')
 const Promise = require('bluebird')
 const util = require('../lib/util')
+const nock = require('nock')
 const { MockChildProcess } = require('spawn-mock')
+
 const _kill = MockChildProcess.prototype.kill
 
 const patchMockSpawn = () => {
@@ -95,12 +97,17 @@ sinon.stub = function (obj, method) {
 
 beforeEach(function () {
   sinon.stub(os, 'platform')
+  sinon.stub(os, 'arch')
   sinon.stub(os, 'release')
   sinon.stub(util, 'getOsVersionAsync').resolves('Foo-OsVersion')
+
+  os.arch.returns('x64')
 })
 
 afterEach(function () {
   mockfs.restore()
   process.env = _.clone(env)
   sinon.restore()
+  nock.cleanAll()
+  util._cachedArch = undefined
 })

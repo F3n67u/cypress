@@ -1,3 +1,4 @@
+/* eslint-disable no-console */
 const _ = require('lodash')
 const chalk = require('chalk')
 const minimist = require('minimist')
@@ -52,7 +53,7 @@ if (!run || !run.length) {
 
       $ yarn test-unit
       $ yarn test-integration
-      $ yarn test-e2e
+      $ yarn test-performance
   `)
 }
 

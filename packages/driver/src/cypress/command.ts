@@ -1,15 +1,45 @@
 import _ from 'lodash'
 import utils from './utils'
 
+let idCounter = 1
+
 export class $Command {
-  // `attributes` is initiated at reset(), but ts cannot detect it.
-  // @ts-ignore
-  attributes: Record<string, any>
+  attributes!: Record<string, any>
+  state: 'queued' | 'pending' | 'passed' | 'recovered' | 'failed' | 'skipped'
 
-  constructor (obj = {}) {
+  constructor (attrs: any = {}) {
     this.reset()
+    this.state = 'queued'
 
-    this.set(obj)
+    // if the command came from a secondary origin, it already has an id
+    if (!attrs.id) {
+      // the id prefix needs to be unique per origin, so there are not
+      // collisions when commands created in a secondary origin are passed
+      // to the primary origin for the command log, etc.
+      attrs.id = `${attrs.chainerId}-cmd-${idCounter++}`
+    }
+
+    this.set(attrs)
+  }
+
+  pass () {
+    this.state = 'passed'
+  }
+
+  skip () {
+    this.state = 'skipped'
+  }
+
+  fail () {
+    this.state = 'failed'
+  }
+
+  recovered () {
+    this.state = 'recovered'
+  }
+
+  start () {
+    this.state = 'pending'
   }
 
   set (key, val?) {
@@ -28,15 +58,28 @@ export class $Command {
   }
 
   finishLogs () {
-    // finish each of the logs we have
-    return _.invokeMap(this.get('logs'), 'finish')
+    // TODO: Investigate whether or not we can reuse snapshots between logs
+    // that snapshot at the same time
+
+    // Finish each of the logs we have, turning any potential errors into actual ones.
+    this.get('logs').forEach((log) => {
+      if (log.get('next') || !log.get('snapshots')) {
+        log.snapshot()
+      }
+
+      if (log.get('_error')) {
+        log.error(log.get('_error'))
+      } else {
+        log.set('snapshot', false)
+        log.finish()
+        if (Cypress.isCrossOriginSpecBridge) {
+          log.fireChangeEvent.flush()
+        }
+      }
+    })
   }
 
   log (log) {
-    // always set the chainerId of the log to ourselves
-    // so it can be queried on later
-    log.set('chainerId', this.get('chainerId'))
-
     this.get('logs').push(log)
 
     return this
@@ -75,14 +118,14 @@ export class $Command {
     return this.attributes
   }
 
-  _removeNonPrimitives (args) {
+  _removeNonPrimitives (args: Array<any> = []) {
     // if the obj has options and
     // log is false, set it to true
     for (let i = args.length - 1; i >= 0; i--) {
       const arg = args[i]
 
       if (_.isObject(arg)) {
-        // filter out any properties which arent primitives
+        // filter out any properties which aren't primitives
         // to prevent accidental mutations
         const opts = _.omitBy(arg, _.isObject)
 
@@ -94,10 +137,6 @@ export class $Command {
         return
       }
     }
-  }
-
-  skip () {
-    return this.set('skip', true)
   }
 
   stringify () {
@@ -128,6 +167,12 @@ export class $Command {
     return this
   }
 
+  pick (...args) {
+    args.unshift(this.attributes)
+
+    return _.pick.apply(_, args as [Record<string, any>, any[]])
+  }
+
   static create (obj) {
     if (utils.isInstanceOf(obj, $Command)) {
       return obj
@@ -136,14 +181,5 @@ export class $Command {
     return new $Command(obj)
   }
 }
-
-// mixin lodash methods
-_.each(['pick'], (method) => {
-  return $Command.prototype[method] = function (...args) {
-    args.unshift(this.attributes)
-
-    return _[method].apply(_, args)
-  }
-})
 
 export default $Command

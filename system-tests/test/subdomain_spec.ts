@@ -93,7 +93,7 @@ const onServer = function (app) {
 
         case 'domain.foobar.com:2292':
           res.cookie('nomnom', 'good', {
-            domain: '.foobar.com',
+            domain: '.domain.foobar.com',
           })
 
           return getText('Domain')
@@ -110,7 +110,7 @@ const onServer = function (app) {
   })
 }
 
-describe('e2e subdomain', () => {
+describe('e2e subdomain w/ cy.origin and injectDocumentDomain disabled', () => {
   systemTests.setup({
     servers: {
       port: 2292,
@@ -119,7 +119,8 @@ describe('e2e subdomain', () => {
   })
 
   systemTests.it('passes', {
-    spec: 'subdomain_spec.js',
+    browser: '!webkit', // TODO(webkit): fix+unskip
+    spec: 'subdomain_origin.cy.js',
     snapshot: true,
     config: {
       hosts: {

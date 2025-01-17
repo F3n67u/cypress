@@ -7,14 +7,14 @@ exports['retries / supports retries'] = `
   ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
   │ Cypress:    1.2.3                                                                              │
   │ Browser:    FooBrowser 88                                                                      │
-  │ Specs:      1 found (fail-twice.js)                                                            │
-  │ Searched:   cypress/integration/fail-twice.js                                                  │
+  │ Specs:      1 found (fail-twice.cy.js)                                                         │
+  │ Searched:   cypress/e2e/fail-twice.cy.js                                                       │
   └────────────────────────────────────────────────────────────────────────────────────────────────┘
 
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────
                                                                                                     
-  Running:  fail-twice.js                                                                   (1 of 1)
+  Running:  fail-twice.cy.js                                                                (1 of 1)
 
 
   (Attempt 1 of 3) fail twice
@@ -33,23 +33,17 @@ exports['retries / supports retries'] = `
   │ Pending:      0                                                                                │
   │ Skipped:      0                                                                                │
   │ Screenshots:  2                                                                                │
-  │ Video:        true                                                                             │
+  │ Video:        false                                                                            │
   │ Duration:     X seconds                                                                        │
-  │ Spec Ran:     fail-twice.js                                                                    │
+  │ Spec Ran:     fail-twice.cy.js                                                                 │
   └────────────────────────────────────────────────────────────────────────────────────────────────┘
 
 
   (Screenshots)
 
-  -  /XXX/XXX/XXX/cypress/screenshots/fail-twice.js/fail twice (failed).png               (1280x720)
-  -  /XXX/XXX/XXX/cypress/screenshots/fail-twice.js/fail twice (failed) (attempt 2).p     (1280x720)
-     ng                                                                                             
-
-
-  (Video)
-
-  -  Started processing:  Compressing to 32 CRF                                                     
-  -  Finished processing: /XXX/XXX/XXX/cypress/videos/fail-twice.js.mp4                   (X second)
+  -  /XXX/XXX/XXX/cypress/screenshots/fail-twice.cy.js/fail twice (failed).png            (1280x720)
+  -  /XXX/XXX/XXX/cypress/screenshots/fail-twice.cy.js/fail twice (failed) (attempt 2     (1280x720)
+     ).png                                                                                          
 
 
 ====================================================================================================
@@ -59,7 +53,7 @@ exports['retries / supports retries'] = `
 
        Spec                                              Tests  Passing  Failing  Pending  Skipped  
   ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
-  │ ✔  fail-twice.js                            XX:XX        1        1        -        -        - │
+  │ ✔  fail-twice.cy.js                         XX:XX        1        1        -        -        - │
   └────────────────────────────────────────────────────────────────────────────────────────────────┘
     ✔  All specs passed!                        XX:XX        1        1        -        -        -  
 
@@ -67,9 +61,9 @@ exports['retries / supports retries'] = `
 `
 
 exports['retries / warns about retries plugin'] = `
-We've detected that the incompatible plugin \`cypress-plugin-retries\` is installed at \`node_modules/cypress-plugin-retries\`.
+We've detected that the incompatible plugin cypress-plugin-retries is installed at: node_modules/cypress-plugin-retries
 
-Test retries is now supported in Cypress version \`5.0.0\`.
+Test retries is now natively supported in Cypress version 5.0.0.
 
 Remove the plugin from your dependencies to silence this warning.
 
@@ -83,14 +77,14 @@ https://on.cypress.io/test-retries
   ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
   │ Cypress:    1.2.3                                                                              │
   │ Browser:    FooBrowser 88                                                                      │
-  │ Specs:      1 found (main.spec.js)                                                             │
-  │ Searched:   cypress/integration/main.spec.js                                                   │
+  │ Specs:      1 found (main.spec.cy.js)                                                          │
+  │ Searched:   cypress/e2e/main.spec.cy.js                                                        │
   └────────────────────────────────────────────────────────────────────────────────────────────────┘
 
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────
                                                                                                     
-  Running:  main.spec.js                                                                    (1 of 1)
+  Running:  main.spec.cy.js                                                                 (1 of 1)
 
 
   ✓ foo
@@ -107,16 +101,10 @@ https://on.cypress.io/test-retries
   │ Pending:      0                                                                                │
   │ Skipped:      0                                                                                │
   │ Screenshots:  0                                                                                │
-  │ Video:        true                                                                             │
+  │ Video:        false                                                                            │
   │ Duration:     X seconds                                                                        │
-  │ Spec Ran:     main.spec.js                                                                     │
+  │ Spec Ran:     main.spec.cy.js                                                                  │
   └────────────────────────────────────────────────────────────────────────────────────────────────┘
-
-
-  (Video)
-
-  -  Started processing:  Compressing to 32 CRF                                                     
-  -  Finished processing: /XXX/XXX/XXX/cypress/videos/main.spec.js.mp4                    (X second)
 
 
 ====================================================================================================
@@ -126,7 +114,69 @@ https://on.cypress.io/test-retries
 
        Spec                                              Tests  Passing  Failing  Pending  Skipped  
   ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
-  │ ✔  main.spec.js                             XX:XX        1        1        -        -        - │
+  │ ✔  main.spec.cy.js                          XX:XX        1        1        -        -        - │
+  └────────────────────────────────────────────────────────────────────────────────────────────────┘
+    ✔  All specs passed!                        XX:XX        1        1        -        -        -  
+
+
+`
+
+exports['retries / supports retries (chrome)'] = `
+
+====================================================================================================
+
+  (Run Starting)
+
+  ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │ Cypress:    1.2.3                                                                              │
+  │ Browser:    FooBrowser 88                                                                      │
+  │ Specs:      1 found (fail-twice.cy.js)                                                         │
+  │ Searched:   cypress/e2e/fail-twice.cy.js                                                       │
+  └────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+────────────────────────────────────────────────────────────────────────────────────────────────────
+                                                                                                    
+  Running:  fail-twice.cy.js                                                                (1 of 1)
+
+
+  (Attempt 1 of 3) fail twice
+  (Attempt 2 of 3) fail twice
+  ✓ fail twice
+
+  1 passing
+
+
+  (Results)
+
+  ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │ Tests:        1                                                                                │
+  │ Passing:      1                                                                                │
+  │ Failing:      0                                                                                │
+  │ Pending:      0                                                                                │
+  │ Skipped:      0                                                                                │
+  │ Screenshots:  2                                                                                │
+  │ Video:        false                                                                            │
+  │ Duration:     X seconds                                                                        │
+  │ Spec Ran:     fail-twice.cy.js                                                                 │
+  └────────────────────────────────────────────────────────────────────────────────────────────────┘
+
+
+  (Screenshots)
+
+  -  /XXX/XXX/XXX/cypress/screenshots/fail-twice.cy.js/fail twice (failed).png            (1280x633)
+  -  /XXX/XXX/XXX/cypress/screenshots/fail-twice.cy.js/fail twice (failed) (attempt 2     (1280x633)
+     ).png                                                                                          
+
+
+====================================================================================================
+
+  (Run Finished)
+
+
+       Spec                                              Tests  Passing  Failing  Pending  Skipped  
+  ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
+  │ ✔  fail-twice.cy.js                         XX:XX        1        1        -        -        - │
   └────────────────────────────────────────────────────────────────────────────────────────────────┘
     ✔  All specs passed!                        XX:XX        1        1        -        -        -  
 

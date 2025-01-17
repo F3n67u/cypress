@@ -1,11 +1,16 @@
 import $ from 'jquery'
 import _ from 'lodash'
+import type { $Cy } from '../cypress/cy'
+import type { StateFunc } from '../cypress/state'
 import $dom from '../dom'
 import { create as createSnapshotsCSS } from './snapshots_css'
+import type { Log } from '../cypress/log'
 
 export const HIGHLIGHT_ATTR = 'data-cypress-el'
 
-export const create = ($$, state) => {
+export const FINAL_SNAPSHOT_NAME = 'final state'
+
+export const create = ($$: $Cy['$$'], state: StateFunc) => {
   const snapshotsCss = createSnapshotsCSS($$, state)
   const snapshotsMap = new WeakMap()
   const snapshotDocument = new Document()
@@ -99,15 +104,20 @@ export const create = ($$, state) => {
   }
 
   const getStyles = (snapshot) => {
-    const styleIds = snapshotsMap.get(snapshot)
+    const { ids, styles } = snapshotsMap.get(snapshot) || {}
 
-    if (!styleIds) {
+    if (!ids && !styles) {
       return {}
     }
 
+    // If a cross origin processed snapshot, styles are directly added into the CSS map. Simply return them.
+    if (styles?.headStyles || styles?.bodyStyles) {
+      return styles
+    }
+
     return {
-      headStyles: snapshotsCss.getStylesByIds(styleIds.headStyleIds),
-      bodyStyles: snapshotsCss.getStylesByIds(styleIds.bodyStyleIds),
+      headStyles: snapshotsCss.getStylesByIds(ids?.headStyleIds),
+      bodyStyles: snapshotsCss.getStylesByIds(ids?.bodyStyleIds),
     }
   }
 
@@ -119,20 +129,24 @@ export const create = ($$, state) => {
     $body.find('script,link[rel="stylesheet"],style').remove()
 
     const snapshot = {
-      name: 'final state',
+      name: FINAL_SNAPSHOT_NAME,
       htmlAttrs,
       body: {
         get: () => $body.detach(),
       },
     }
 
-    snapshotsMap.set(snapshot, { headStyleIds, bodyStyleIds })
+    snapshotsMap.set(snapshot, {
+      ids: {
+        headStyleIds,
+        bodyStyleIds,
+      },
+    })
 
     return snapshot
   }
 
-  const createSnapshot = (name, $elToHighlight) => {
-    Cypress.action('cy:snapshot', name)
+  const createSnapshotBody = ($elToHighlight) => {
     // create a unique selector for this el
     // but only IF the subject is truly an element. For example
     // we might be wrapping a primitive like "$([1, 2]).first()"
@@ -140,70 +154,122 @@ export const create = ($$, state) => {
     // jQuery v2 allowed to silently try setting 1[HIGHLIGHT_ATTR] doing nothing
     // jQuery v3 runs in strict mode and throws an error if you attempt to set a property
 
+    const shouldHighlightElement = isJqueryElement($elToHighlight)
+
+    if (shouldHighlightElement) {
+      ($elToHighlight as JQuery<HTMLElement>).attr(HIGHLIGHT_ATTR, 'true')
+    }
+
+    // TODO: throw error here if cy is undefined!
+
+    // cloneNode can actually trigger functions attached to custom elements
+    // so we have to use importNode to clone the element
+    // https://github.com/cypress-io/cypress/issues/7187
+    // https://github.com/cypress-io/cypress/issues/1068
+    // we import it to a transient document (snapshotDocument) so that there
+    // are no side effects from cloning it. see below for how we re-attach
+    // it to the AUT document
+    // https://github.com/cypress-io/cypress/issues/8679
+    // this can fail if snapshotting before the page has fully loaded,
+    // so we catch this below and return null for the snapshot
+    // https://github.com/cypress-io/cypress/issues/15816
+    const $body = $$(snapshotDocument.importNode($$('body')[0], true))
+    // for the head and body, get an array of all CSS,
+    // whether it's links or style tags
+    // if it's same-origin, it will get the actual styles as a string
+    // if it's cross-origin, it will get a reference to the link's href
+    const { headStyleIds, bodyStyleIds } = snapshotsCss.getStyleIds()
+
+    // replaces iframes with placeholders
+    replaceIframes($body)
+
+    // remove tags we don't want in body
+    $body.find('script,link[rel=\'stylesheet\'],style').remove()
+
+    // here we need to figure out if we're in a remote manual environment
+    // if so we need to stringify the DOM:
+    // 1. grab all inputs / textareas / options and set their value on the element
+    // 2. convert DOM to string: body.prop("outerHTML")
+    // 3. send this string via websocket to our server
+    // 4. server rebroadcasts this to our client and its stored as a property
+
+    // its also possible for us to store the DOM string completely on the server
+    // without ever sending it back to the browser (until its requests).
+    // we could just store it in memory and wipe it out intelligently.
+    // this would also prevent having to store the DOM structure on the client,
+    // which would reduce memory, and some CPU operations
+
+    // now remove it after we clone
+    if (shouldHighlightElement) {
+      ($elToHighlight as JQuery<HTMLElement>).removeAttr(HIGHLIGHT_ATTR)
+    }
+
+    const $htmlAttrs = getHtmlAttrs($$('html')[0])
+
+    return {
+      $body,
+      $htmlAttrs,
+      headStyleIds,
+      bodyStyleIds,
+    }
+  }
+
+  const reifySnapshotBody = (preprocessedSnapshot) => {
+    const $body = preprocessedSnapshot.body.get()
+    const $htmlAttrs = preprocessedSnapshot.htmlAttrs
+    const { headStyles, bodyStyles } = preprocessedSnapshot.styles
+
+    return {
+      $body,
+      $htmlAttrs,
+      headStyles,
+      bodyStyles,
+    }
+  }
+
+  const isJqueryElement = ($el) => {
     // TODO: in firefox sometimes this throws a cross-origin access error
+    return $dom.isElement($el) && $dom.isJquery($el)
+  }
+
+  const createSnapshot = (name?, $elToHighlight?, preprocessedSnapshot?, relatedLog?: Log) => {
+    Cypress.action('cy:snapshot', name)
+    // when using cy.origin() and in a transitionary state, state('document')
+    // can be undefined, resulting in a bizarre snapshot of the entire Cypress
+    // UI. better not to take the snapshot in that case.
+    // https://github.com/cypress-io/cypress/issues/24506
+    // also, do not take the snapshot here if it has already been taken and
+    // preprocessed in a spec bridge.
+    if (!preprocessedSnapshot && !state('document')) {
+      return null
+    }
+
+    const timestamp = performance.now() + performance.timeOrigin
+
     try {
-      const isJqueryElement = $dom.isElement($elToHighlight) && $dom.isJquery($elToHighlight)
+      const {
+        $body,
+        $htmlAttrs,
+        ...styleAttrs
+      } = preprocessedSnapshot ? reifySnapshotBody(preprocessedSnapshot) : createSnapshotBody($elToHighlight)
 
-      if (isJqueryElement) {
-        ($elToHighlight as JQuery<HTMLElement>).attr(HIGHLIGHT_ATTR, 'true')
-      }
-
-      // TODO: throw error here if cy is undefined!
-
-      // cloneNode can actually trigger functions attached to custom elements
-      // so we have to use importNode to clone the element
-      // https://github.com/cypress-io/cypress/issues/7187
-      // https://github.com/cypress-io/cypress/issues/1068
-      // we import it to a transient document (snapshotDocument) so that there
-      // are no side effects from cloning it. see below for how we re-attach
-      // it to the AUT document
-      // https://github.com/cypress-io/cypress/issues/8679
-      // this can fail if snapshotting before the page has fully loaded,
-      // so we catch this below and return null for the snapshot
-      // https://github.com/cypress-io/cypress/issues/15816
-      const $body = $$(snapshotDocument.importNode($$('body')[0], true))
-
-      // for the head and body, get an array of all CSS,
-      // whether it's links or style tags
-      // if it's same-origin, it will get the actual styles as a string
-      // it it's cross-domain, it will get a reference to the link's href
-      const { headStyleIds, bodyStyleIds } = snapshotsCss.getStyleIds()
-
-      // replaces iframes with placeholders
-      replaceIframes($body)
-
-      // remove tags we don't want in body
-      $body.find('script,link[rel=\'stylesheet\'],style').remove()
-
-      // here we need to figure out if we're in a remote manual environment
-      // if so we need to stringify the DOM:
-      // 1. grab all inputs / textareas / options and set their value on the element
-      // 2. convert DOM to string: body.prop("outerHTML")
-      // 3. send this string via websocket to our server
-      // 4. server rebroadcasts this to our client and its stored as a property
-
-      // its also possible for us to store the DOM string completely on the server
-      // without ever sending it back to the browser (until its requests).
-      // we could just store it in memory and wipe it out intelligently.
-      // this would also prevent having to store the DOM structure on the client,
-      // which would reduce memory, and some CPU operations
-
-      // now remove it after we clone
-      if (isJqueryElement) {
-        ($elToHighlight as JQuery<HTMLElement>).removeAttr(HIGHLIGHT_ATTR)
-      }
-
-      // preserve attributes on the <html> tag
-      const htmlAttrs = getHtmlAttrs($$('html')[0])
-      // the body we clone via importNode above is attached to a transient document
-      // so that there are no side effects from cloning it. we only attach it back
-      // to the AUT document at the last moment (when restoring the snapshot)
-      // https://github.com/cypress-io/cypress/issues/8679
       let attachedBody
       const body = {
         get: () => {
           if (!attachedBody) {
-            attachedBody = $$(state('document').adoptNode($body[0]))
+            // logs streaming in from the secondary need to be cloned off a document,
+            // which means state("document") will be undefined in the primary
+            // if a cy.origin block is active
+
+            // this could also be possible, but unlikely, if the spec bridge is taking
+            // snapshots before the document has loaded into state, as could be the case with logs
+            // generated from before:load event handlers in a spec bridge
+
+            // in any of these cases, fall back to the root document as we only
+            // need the document to clone the node.
+            const doc = state('document') || window.document
+
+            attachedBody = $$(doc.adoptNode($body[0]))
           }
 
           return attachedBody
@@ -212,11 +278,39 @@ export const create = ($$, state) => {
 
       const snapshot = {
         name,
-        htmlAttrs,
+        timestamp,
+        htmlAttrs: $htmlAttrs,
         body,
       }
 
-      snapshotsMap.set(snapshot, { headStyleIds, bodyStyleIds })
+      const {
+        headStyleIds,
+        bodyStyleIds,
+        headStyles,
+        bodyStyles,
+      }: {
+        headStyleIds?: string[]
+        bodyStyleIds?: string[]
+        headStyles?: string[]
+        bodyStyles?: string[]
+      } = styleAttrs
+
+      if (headStyleIds && bodyStyleIds) {
+        snapshotsMap.set(snapshot, {
+          ids: {
+            headStyleIds,
+            bodyStyleIds,
+          },
+        })
+      } else if (headStyles && bodyStyles) {
+        // The Snapshot is being reified from cross origin. Get inline styles of reified snapshot.
+        snapshotsMap.set(snapshot, {
+          styles: {
+            headStyles,
+            bodyStyles,
+          },
+        })
+      }
 
       return snapshot
     } catch (e) {
@@ -233,7 +327,4 @@ export const create = ($$, state) => {
   }
 }
 
-export interface ISnapshots extends Omit<
-  ReturnType<typeof create>,
-  'onCssModified' | 'onBeforeWindowLoad'
-> {}
+export interface ISnapshots extends ReturnType<typeof create> {}

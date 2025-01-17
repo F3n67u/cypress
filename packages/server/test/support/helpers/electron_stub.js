@@ -17,10 +17,12 @@ module.exports = {
     exit () {},
     commandLine: {
       appendSwitch () {},
+      getSwitchValue () {},
       appendArgument () {},
     },
     disableHardwareAcceleration () {},
     async whenReady () {},
+    once () {},
   },
   systemPreferences: {
     isDarkMode () {},

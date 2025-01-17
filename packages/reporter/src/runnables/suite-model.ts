@@ -1,7 +1,8 @@
 import _ from 'lodash'
-import { computed, observable } from 'mobx'
+import { computed, observable, makeObservable } from 'mobx'
 import Runnable, { RunnableProps } from './runnable-model'
-import TestModel, { TestProps, TestState } from '../test/test-model'
+import TestModel, { TestProps } from '../test/test-model'
+import { TestState } from '@packages/types'
 
 export interface SuiteProps extends RunnableProps {
   suites: Array<SuiteProps>
@@ -11,6 +12,12 @@ export interface SuiteProps extends RunnableProps {
 export default class Suite extends Runnable {
   @observable children: Array<TestModel | Suite> = []
   type = 'suite'
+
+  constructor (props: SuiteProps, level: number) {
+    super(props, level)
+
+    makeObservable(this)
+  }
 
   @computed get state (): TestState {
     if (this._anyChildrenFailed) {

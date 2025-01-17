@@ -3,17 +3,35 @@ const systemTests = require('../lib/system-tests').default
 describe('e2e specs', () => {
   systemTests.setup()
 
-  it('failing when no specs found', function () {
+  it('failing when no specs found and default specPattern', function () {
     return systemTests.exec(this, {
-      config: { integrationFolder: 'cypress/specs' },
+      project: 'no-specs',
       snapshot: true,
       expectedExitCode: 1,
     })
   })
 
-  it('failing when no spec pattern found', function () {
+  it('failing when no specs found and custom specPattern', function () {
     return systemTests.exec(this, {
-      spec: 'cypress/integration/**notfound**',
+      project: 'no-specs-custom-pattern',
+      snapshot: true,
+      expectedExitCode: 1,
+    })
+  })
+
+  it('failing when no specs found and spec pattern provided from CLI', function () {
+    return systemTests.exec(this, {
+      project: 'no-specs',
+      spec: 'does/not/exist/**notfound**',
+      snapshot: true,
+      expectedExitCode: 1,
+    })
+  })
+
+  it('failing when no specs found with custom spec pattern and spec pattern provided from CLI', function () {
+    return systemTests.exec(this, {
+      project: 'no-specs-custom-pattern',
+      spec: 'does/not/exist/**notfound**',
       snapshot: true,
       expectedExitCode: 1,
     })
@@ -40,6 +58,15 @@ describe('e2e specs', () => {
     return systemTests.exec(this, {
       project: 'spec-name-special-characters',
       snapshot: false,
+      expectedExitCode: 0,
+    })
+  })
+
+  it('handles glob characters in the working directory and spec pattern provided from CLI', function () {
+    return systemTests.exec(this, {
+      project: 'project-with-(glob)-[chars]',
+      spec: '**/*.cy.js',
+      snapshot: true,
       expectedExitCode: 0,
     })
   })

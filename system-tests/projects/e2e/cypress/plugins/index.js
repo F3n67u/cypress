@@ -6,22 +6,10 @@ const path = require('path')
 const Promise = require('bluebird')
 const { useFixedBrowserLaunchSize } = require('@tooling/system-tests/lib/pluginUtils')
 
-const { startDevServer } = require('@cypress/webpack-dev-server')
-
-const webpackConfig = {
-  output: {
-    publicPath: '/',
-  },
-}
-
 /**
  * @type {Cypress.PluginConfig}
  */
 module.exports = (on, config) => {
-  if (config.testingType === 'component') {
-    on('dev-server:start', (options) => startDevServer({ options, webpackConfig }))
-  }
-
   let performance = {
     track: () => Promise.resolve(),
   }
@@ -71,6 +59,17 @@ module.exports = (on, config) => {
     }
 
     if (browser.family === 'chromium' && browser.name !== 'electron') {
+      if (process.env.CHROMIUM_USE_HEADLESS_OLD) {
+        options.args = options.args.map((arg) => {
+          // ensure we are using --headless=old by overriding both headless new and default
+          if (arg === '--headless' || arg === '--headless=new') {
+            return '--headless=old'
+          }
+
+          return arg
+        })
+      }
+
       if (process.env.CHROMIUM_EXTRA_LAUNCH_ARGS) {
         options.args = options.args.concat(process.env.CHROMIUM_EXTRA_LAUNCH_ARGS.split(' '))
       }
@@ -208,4 +207,6 @@ module.exports = (on, config) => {
       return config[key]
     },
   })
+
+  return config
 }

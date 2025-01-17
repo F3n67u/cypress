@@ -3,7 +3,9 @@ const check = require('syntax-error')
 const debug = require('debug')('cypress:server:fixture')
 const coffee = require('coffeescript')
 const Promise = require('bluebird')
-const jsonlint = require('jsonlint')
+const jsonParseBetterErrors = require('json-parse-even-better-errors')
+const stripAnsi = require('strip-ansi')
+
 const errors = require('./errors')
 const { fs } = require('./util/fs')
 const glob = require('./util/glob')
@@ -27,7 +29,7 @@ const extensions = [
 const queue = {}
 
 const friendlyJsonParse = function (s) {
-  jsonlint.parse(s) // might throw good error
+  jsonParseBetterErrors(s) // should throw an error with better formatting
 
   return JSON.parse(s) // actually parses correctly all the edge cases
 }
@@ -54,12 +56,20 @@ module.exports = {
       return glob(pattern, {
         nosort: true,
         nodir: true,
-      }).bind(this)
+      })
+      .bind(this)
       .then(function (matches) {
         if (matches.length === 0) {
           const relativePath = path.relative('.', p)
 
-          errors.throw('FIXTURE_NOT_FOUND', relativePath, extensions)
+          // TODO: there's no reason this error should be in
+          // the @packages/error list, it should be written in
+          // the driver since this error can only occur within
+          // driver commands and not outside of the test runner
+          const err = errors.get('FIXTURE_NOT_FOUND', relativePath, extensions)
+
+          err.message = stripAnsi(err.message)
+          throw err
         }
 
         debug('fixture matches found, using the first', matches)

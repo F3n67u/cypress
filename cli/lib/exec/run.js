@@ -5,7 +5,7 @@ const util = require('../util')
 const spawn = require('./spawn')
 const verify = require('../tasks/verify')
 const { exitWithError, errors } = require('../errors')
-const { processTestingType, throwInvalidOptionError } = require('./shared')
+const { processTestingType, throwInvalidOptionError, checkConfigFile } = require('./shared')
 
 /**
  * Typically a user passes a string path to the project.
@@ -45,6 +45,10 @@ const processRunOptions = (options = {}) => {
 
   const args = ['--run-project', options.project]
 
+  if (options.autoCancelAfterFailures || options.autoCancelAfterFailures === 0 || options.autoCancelAfterFailures === false) {
+    args.push('--auto-cancel-after-failures', options.autoCancelAfterFailures)
+  }
+
   if (options.browser) {
     args.push('--browser', options.browser)
   }
@@ -58,6 +62,7 @@ const processRunOptions = (options = {}) => {
   }
 
   if (options.configFile !== undefined) {
+    checkConfigFile(options)
     args.push('--config-file', options.configFile)
   }
 
@@ -128,6 +133,10 @@ const processRunOptions = (options = {}) => {
     args.push('--reporter-options', options.reporterOptions)
   }
 
+  if (options.runnerUi != null) {
+    args.push('--runner-ui', options.runnerUi)
+  }
+
   // if we have specific spec(s) push that into the args
   if (options.spec) {
     args.push('--spec', options.spec)
@@ -137,7 +146,15 @@ const processRunOptions = (options = {}) => {
     args.push('--tag', options.tag)
   }
 
-  args.push(...processTestingType(options.testingType))
+  if (options.inspect) {
+    args.push('--inspect')
+  }
+
+  if (options.inspectBrk) {
+    args.push('--inspectBrk')
+  }
+
+  args.push(...processTestingType(options))
 
   return args
 }
@@ -156,10 +173,14 @@ module.exports = {
     })
 
     function run () {
-      let args
-
       try {
-        args = processRunOptions(options)
+        const args = processRunOptions(options)
+
+        debug('run to spawn.start args %j', args)
+
+        return spawn.start(args, {
+          dev: options.dev,
+        })
       } catch (err) {
         if (err.details) {
           return exitWithError(err.details)()
@@ -167,12 +188,6 @@ module.exports = {
 
         throw err
       }
-
-      debug('run to spawn.start args %j', args)
-
-      return spawn.start(args, {
-        dev: options.dev,
-      })
     }
 
     if (options.dev) {

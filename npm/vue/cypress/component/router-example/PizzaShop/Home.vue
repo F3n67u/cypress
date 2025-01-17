@@ -1,10 +1,17 @@
 <template>
   <div class="shop-home">
-    <router-link 
-      :to="{ name: 'order' }" 
-      custom v-slot="{ navigate }">     
-      <button class="order" @click="navigate">Place Your Order</button>
-     </router-link>
+    <router-link
+      v-slot="{ navigate }"
+      :to="{ name: 'order' }"
+      custom
+    >
+      <button
+        class="order"
+        @click="navigate"
+      >
+        Place Your Order
+      </button>
+    </router-link>
     <br>
     <h4>Or select a popular option:</h4>
     <router-link
@@ -26,10 +33,10 @@
       🍖 Meatlover
     </router-link><br>
     <router-link
-      :to="{ name: 'order', params: { preset: 'hawaian' } }"
-      class="order-hawaian"
+      :to="{ name: 'order', params: { preset: 'hawaiian' } }"
+      class="order-hawaiian"
     >
-      🍍 Hawain
+      🍍 Hawaiian
     </router-link><br>
     <router-link
       :to="{ name: 'order', query: { cheese: true } }"

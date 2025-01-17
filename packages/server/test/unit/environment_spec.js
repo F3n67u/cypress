@@ -2,7 +2,7 @@ require('../spec_helper')
 
 const Promise = require('bluebird')
 const pkg = require('@packages/root')
-const { fs } = require(`${root}lib/util/fs`)
+const { fs } = require(`../../lib/util/fs`)
 const mockedEnv = require('mocked-env')
 const { app } = require('electron')
 
@@ -13,7 +13,7 @@ const setEnv = (env) => {
 }
 
 const expectedEnv = function (env) {
-  require(`${root}lib/environment`)
+  require(`../../lib/environment`)
 
   expect(process.env['CYPRESS_INTERNAL_ENV']).to.eq(env)
 }
@@ -31,11 +31,11 @@ describe('lib/environment', () => {
     sinon.stub(Promise, 'config')
     delete process.env['CYPRESS_INTERNAL_ENV']
 
-    return delete require.cache[require.resolve(`${root}lib/environment`)]
+    return delete require.cache[require.resolve(`../../lib/environment`)]
   })
 
   afterEach(() => {
-    delete require.cache[require.resolve(`${root}lib/environment`)]
+    delete require.cache[require.resolve(`../../lib/environment`)]
 
     return delete process.env['CYPRESS_INTERNAL_ENV']
   })
@@ -53,7 +53,7 @@ describe('lib/environment', () => {
       })
 
       sinon.stub(app.commandLine, 'appendSwitch')
-      require(`${root}lib/environment`)
+      require(`../../lib/environment`)
       expect(app.commandLine.appendSwitch).to.have.been.calledWith('--foo')
       expect(app.commandLine.appendSwitch).to.have.been.calledWith('--bar', 'baz')
 
@@ -66,7 +66,7 @@ describe('lib/environment', () => {
       })
 
       sinon.stub(app.commandLine, 'appendSwitch')
-      require(`${root}lib/environment`)
+      require(`../../lib/environment`)
       expect(app.commandLine.appendSwitch).to.have.been.calledWith('--foo')
       expect(app.commandLine.appendSwitch).to.have.been.calledWith('--bar', 'baz')
 
@@ -79,11 +79,25 @@ describe('lib/environment', () => {
       })
 
       sinon.stub(app.commandLine, 'appendSwitch')
-      require(`${root}lib/environment`)
+      require(`../../lib/environment`)
       expect(app.commandLine.appendSwitch).to.have.been.calledWith('--foo')
       expect(app.commandLine.appendSwitch).to.have.been.calledWith('--bar', 'baz')
 
       expect(app.commandLine.appendSwitch).to.have.been.calledWith('--quux', 'false')
+    })
+
+    it('sets launch args with multiple values inside quotes', () => {
+      restore = mockedEnv({
+        ELECTRON_EXTRA_LAUNCH_ARGS: `--foo --ipsum=0 --bar=--baz=quux --lorem='--ipsum=dolor --sit=amet'`,
+      })
+
+      sinon.stub(app.commandLine, 'appendSwitch')
+      require(`../../lib/environment`)
+
+      expect(app.commandLine.appendSwitch).to.have.been.calledWith('--foo')
+      expect(app.commandLine.appendSwitch).to.have.been.calledWith('--ipsum', '0')
+      expect(app.commandLine.appendSwitch).to.have.been.calledWith('--bar', '--baz=quux')
+      expect(app.commandLine.appendSwitch).to.have.been.calledWith('--lorem', '--ipsum=dolor --sit=amet')
     })
 
     return afterEach(() => {

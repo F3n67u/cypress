@@ -24,11 +24,6 @@ function replaceStringsIn (file) {
     replace(eslintRe, "")
     replace("imgSrcToDataURL('/assets", "imgSrcToDataURL('https://example.cypress.io/assets")
 
-    // temporary for 5.0.0
-    // TODO: remove this
-    replace("whitelist: 'session_id'", "preserve: 'session_id'")
-    replace("server.whitelist", "server.ignore")
-
     fs.writeFile(file, str, function (err) {
       if (err) throw err
 
@@ -41,7 +36,7 @@ function replaceStringsIn (file) {
 glob('./app/**/*.html', { realpath: true }, (err, htmlFiles) => {
   if (err) throw err
 
-  glob('./cypress/integration/**/*.js', { realpath: true }, (err, specFiles) => {
+  glob('./cypress/e2e/**/*.js', { realpath: true }, (err, specFiles) => {
     if (err) throw err
 
     htmlFiles.concat(specFiles).forEach(function (file) {

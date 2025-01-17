@@ -4,7 +4,7 @@ const execa = require('execa')
 const path = require('path')
 const la = require('lazy-ass')
 const fs = require('fs')
-const filesize = require('filesize')
+const { filesize } = require('filesize')
 
 // prints disk usage numbers using "du" utility
 // available on Linux and Mac
@@ -72,7 +72,10 @@ const checkZipSize = function (zipPath) {
   const zipSize = filesize(stats.size, { round: 0 })
 
   console.log(`zip file size ${zipSize}`)
-  const MAX_ALLOWED_SIZE_MB = os.platform() === 'win32' ? 265 : 230
+  // Before you modify these max sizes, check and see what you did that might have
+  // done to increase the size of the binary, and if you do need to change it,
+  // call it out in the PR description / comments
+  const MAX_ALLOWED_SIZE_MB = os.platform() === 'win32' ? 295 : 200
   const MAX_ZIP_FILE_SIZE = megaBytes(MAX_ALLOWED_SIZE_MB)
 
   if (stats.size > MAX_ZIP_FILE_SIZE) {

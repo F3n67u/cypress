@@ -33,7 +33,7 @@ Cypress.on('url:changed', (url) => {
 })
 
 Cypress.on('fail', (error, mocha) => {
-  error // $ExpectType Error
+  error // $ExpectType CypressError
   mocha // $ExpectType Runnable
 })
 
@@ -46,7 +46,7 @@ Cypress.on('scrolled', ($el) => {
 })
 
 Cypress.on('command:enqueued', (command) => {
-  command // $ExpectType EnqueuedCommand
+  command // $ExpectType EnqueuedCommandAttributes
 })
 
 Cypress.on('command:start', (command) => {
@@ -61,15 +61,22 @@ Cypress.on('command:retry', (command) => {
   command // $ExpectType CommandQueue
 })
 
-Cypress.on('log:added', (log, interactive: boolean) => {
+Cypress.on('log:added', (attributes, log) => {
+  attributes // $ExpectType ObjectLike
   log // $ExpectTyped any
 })
 
-Cypress.on('log:changed', (log, interactive: boolean) => {
+Cypress.on('log:changed', (attributes, log) => {
+  attributes // $ExpectType ObjectLike
   log // $ExpectTyped any
 })
 
 Cypress.on('test:before:run', (attributes , test) => {
+  attributes // $ExpectType ObjectLike
+  test // $ExpectType Test
+})
+
+Cypress.on('test:before:run:async', (attributes , test) => {
   attributes // $ExpectType ObjectLike
   test // $ExpectType Test
 })
@@ -86,4 +93,19 @@ namespace CypressActionCommandOptionTests {
   cy.get('el').trigger('mousedown', {scrollBehavior: 'nearest'})
   cy.get('el').click({scrollBehavior: false})
   cy.get('el').click({scrollBehavior: true}) // $ExpectError
+}
+
+// https://github.com/cypress-io/cypress/pull/21286
+// `waitFor` doesn't exist in Node EventEmitter
+// and it confuses the users with `cy.wait`
+namespace CyEventEmitterTests {
+  cy.waitFor() // $ExpectError
+  cy.on('random', () => {})
+  cy.removeAllListeners()
+  cy.removeListener('a', () => {})
+
+  Cypress.waitFor() // $ExpectError
+  Cypress.on('random', () => {})
+  Cypress.removeAllListeners()
+  Cypress.removeListener('a', () => {})
 }

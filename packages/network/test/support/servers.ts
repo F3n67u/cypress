@@ -12,14 +12,18 @@ export interface AsyncServer {
   listenAsync: (port) => Promise<void>
 }
 
-function createExpressApp () {
+function createExpressApp (requestCallback: (req) => void) {
   const app: express.Application = express()
 
   app.get('/get', (req, res) => {
+    if (requestCallback) requestCallback(req)
+
     res.send('It worked!')
   })
 
   app.get('/empty-response', (req, res) => {
+    if (requestCallback) requestCallback(req)
+
     // ERR_EMPTY_RESPONSE in Chrome
     setTimeout(() => res.connection.destroy(), 100)
   })
@@ -27,9 +31,11 @@ function createExpressApp () {
   return app
 }
 
-function getLocalhostCertKeys () {
+function getCAInformation () {
   return CA.create()
-  .then((ca) => ca.generateServerCertificateKeys('localhost'))
+  .then((ca) => {
+    return Promise.all([ca.generateServerCertificateKeys('localhost'), ca.getCACertPath()])
+  })
 }
 
 function onWsConnection (socket) {
@@ -42,20 +48,23 @@ export class Servers {
   httpsServer: https.Server & AsyncServer
   wsServer: any
   wssServer: any
+  caCertificatePath: string
+  lastRequestHeaders: any
 
   start (httpPort: number, httpsPort: number) {
     return Promise.join(
-      createExpressApp(),
-      getLocalhostCertKeys(),
+      createExpressApp((req) => this.lastRequestHeaders = req.headers),
+      getCAInformation(),
     )
-    .spread((app: Express.Application, [cert, key]: string[]) => {
+    .spread((app: Express.Application, [serverCertificateKeys, caCertificatePath]: [serverCertificateKeys: string[], caCertificatePath: string]) => {
       this.httpServer = Promise.promisifyAll(
         allowDestroy(http.createServer(app)),
       ) as http.Server & AsyncServer
 
       this.wsServer = new SocketIOServer(this.httpServer)
 
-      this.https = { cert, key }
+      this.caCertificatePath = caCertificatePath
+      this.https = { cert: serverCertificateKeys[0], key: serverCertificateKeys[1] }
       this.httpsServer = Promise.promisifyAll(
         allowDestroy(https.createServer(this.https, <http.RequestListener>app)),
       ) as https.Server & AsyncServer

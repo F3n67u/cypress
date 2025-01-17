@@ -30,26 +30,44 @@ describe('lib/tasks/unzip', function () {
 
   afterEach(function () {
     stdout.restore()
-
-    // return fs.removeAsync(installationDir)
   })
 
-  it('throws when cannot unzip', function () {
-    const ctx = this
-
-    return unzip
-    .start({
-      zipFilePath: path.join('test', 'fixture', 'bad_example.zip'),
-      installDir,
-    })
-    .then(() => {
-      throw new Error('should have failed')
-    })
-    .catch((err) => {
+  it('throws when cannot unzip', async function () {
+    try {
+      await unzip.start({
+        zipFilePath: path.join('test', 'fixture', 'bad_example.zip'),
+        installDir,
+      })
+    } catch (err) {
       logger.error(err)
 
-      snapshot('unzip error 1', normalize(ctx.stdout.toString()))
-    })
+      return snapshot(normalize(this.stdout.toString()))
+    }
+
+    throw new Error('should have failed')
+  })
+
+  it('throws max path length error when cannot unzip due to realpath ENOENT on windows', async function () {
+    const err = new Error('failed')
+
+    err.code = 'ENOENT'
+    err.syscall = 'realpath'
+
+    os.platform.returns('win32')
+    sinon.stub(fs, 'ensureDirAsync').rejects(err)
+
+    try {
+      await unzip.start({
+        zipFilePath: path.join('test', 'fixture', 'bad_example.zip'),
+        installDir,
+      })
+    } catch (err) {
+      logger.error(err)
+
+      return snapshot(normalize(this.stdout.toString()))
+    }
+
+    throw new Error('should have failed')
   })
 
   it('can really unzip', function () {
@@ -112,6 +130,45 @@ describe('lib/tasks/unzip', function () {
         expect(unzip.utils.unzipTools.extract, 'extract called once').to.be.calledOnce
         done()
       })
+    })
+
+    it('can try unzip first then fall back to node unzip and fails with an empty error', async function () {
+      const zipFilePath = path.join('test', 'fixture', 'example.zip')
+
+      sinon.stub(unzip.utils.unzipTools, 'extract').callsFake(() => {
+        return new Promise((_, reject) => reject())
+      })
+
+      const unzipChildProcess = new events.EventEmitter()
+
+      unzipChildProcess.stdout = {
+        on () {},
+      }
+
+      unzipChildProcess.stderr = {
+        on () {},
+      }
+
+      sinon.stub(cp, 'spawn').withArgs('unzip').returns(unzipChildProcess)
+
+      setTimeout(() => {
+        debug('emitting unzip error')
+        unzipChildProcess.emit('error', new Error('unzip fails badly'))
+      }, 100)
+
+      try {
+        await unzip
+        .start({
+          zipFilePath,
+          installDir,
+        })
+      } catch (err) {
+        logger.error(err)
+        expect(err.message).to.include('Unknown error with Node extract tool')
+
+        return
+      }
+      throw new Error('should have failed')
     })
 
     it('calls node unzip just once', function (done) {

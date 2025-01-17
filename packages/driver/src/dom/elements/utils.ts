@@ -5,7 +5,6 @@ import $window from '../window'
 import $document from '../document'
 
 const whitespaces = /\s+/g
-const quotesRe = /('|")/g
 
 // When multiple space characters are considered as a single whitespace in all tags except <pre>.
 export const normalizeWhitespaces = (elem) => {
@@ -29,12 +28,6 @@ export const isSelector = ($el: JQuery<HTMLElement>, selector) => {
   return $el.is(selector)
 }
 
-export function escapeQuotes (text) {
-  // convert to str and escape any single
-  // or double quotes
-  return (`${text}`).replace(quotesRe, '\\$1')
-}
-
 export function switchCase (value, casesObj, defaultKey = 'default') {
   if (_.has(casesObj, value)) {
     return _.result(casesObj, value)
@@ -50,6 +43,10 @@ export function switchCase (value, casesObj, defaultKey = 'default') {
 }
 
 export const stringify = (el, form = 'long') => {
+  if (_.isString(el)) {
+    return el
+  }
+
   // if we are formatting the window object
   if ($window.isWindow(el)) {
     return '<window>'
@@ -89,7 +86,7 @@ export const stringify = (el, form = 'long') => {
   const short = () => {
     const id = $el.prop('id')
     const klass = $el.attr('class')
-    let str = $el.prop('tagName').toLowerCase()
+    let str = $el.length ? $el.prop('tagName').toLowerCase() : el.selector
 
     if (id) {
       str += `#${id}`

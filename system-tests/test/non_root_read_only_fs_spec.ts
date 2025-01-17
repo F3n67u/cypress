@@ -2,6 +2,7 @@ import * as fs from 'fs'
 import * as path from 'path'
 import systemTests from '../lib/system-tests'
 import Fixtures from '../lib/fixtures'
+import { scaffoldCommonNodeModules } from '@tooling/system-tests/lib/dep-installer'
 
 describe('e2e readonly fs', function () {
   systemTests.setup()
@@ -23,23 +24,22 @@ describe('e2e readonly fs', function () {
   }
 
   const onRun = async (exec) => {
-    Fixtures.scaffoldProject('read-only-project-root')
-    await Fixtures.scaffoldCommonNodeModules()
-    chmodr(projectPath, 0o500)
+    try {
+      await Fixtures.scaffoldProject('read-only-project-root')
+      await scaffoldCommonNodeModules()
+      chmodr(projectPath, 0o500)
 
-    await exec()
-
-    chmodr(projectPath, 0o777)
+      await exec()
+    } finally {
+      chmodr(projectPath, 0o777)
+    }
   }
 
   systemTests.it('warns when unable to write to disk', {
     project: 'read-only-project-root',
     expectedExitCode: 1,
-    spec: 'spec.js',
+    spec: 'spec.cy.js',
     snapshot: true,
-    config: {
-      video: false,
-    },
     skipScaffold: true,
     onRun,
   })

@@ -335,14 +335,38 @@ const _moveCursorUpOrDown = function (up: boolean, el: HTMLElement) {
     // on an input, instead of moving the cursor
     // we want to perform the native browser action
     // which is to increment the step/interval
-    if ($elements.isInputType(el, 'number')) {
+
+    const validInputTypes = [
+      'number',
+      'datetime-local',
+      'date',
+      'time',
+      'week',
+      'month',
+      'range',
+    ]
+
+    let check = validInputTypes.some((type) => $elements.isInputType(el, type))
+
+    if (check) {
       if (up) {
         if (typeof el.stepUp === 'function') {
+          const changeEvent = new Event('change')
+
+          const inputEvent = new Event('input')
+
           el.stepUp()
+          el.dispatchEvent(inputEvent)
+          el.dispatchEvent(changeEvent)
         }
       } else {
         if (typeof el.stepDown === 'function') {
+          const changeEvent = new Event('change')
+          const inputEvent = new Event('input')
+
           el.stepDown()
+          el.dispatchEvent(inputEvent)
+          el.dispatchEvent(changeEvent)
         }
       }
     }
@@ -420,12 +444,6 @@ const _moveCursorToLineStartOrEnd = function (toStart: boolean, el: HTMLElement)
 
         return
       }
-      // const doc = $document.getDocumentFromElement(el)
-      // console.log(doc.activeElement)
-      // $elements.callNativeMethod(doc, 'execCommand', 'selectall', false)
-      // $elements.callNativeMethod(el, 'select')
-      // _getSelectionByEl(el).ca
-      // toStart ? _getSelectionByEl(el).collapseToStart : _getSelectionByEl(el).collapseToEnd()
 
       if (isTextarea) {
         const bounds = _getSelectionBoundsFromTextarea(el)
@@ -581,19 +599,7 @@ const _moveSelectionTo = function (toStart: boolean, el: HTMLElement, options = 
         $elements.callNativeMethod(doc, 'execCommand', 'selectAll', false, null)
       }
     } else {
-      let range
-
-      // Sometimes, selection.rangeCount is 0 when there is no selection.
-      // In that case, it fails in Chrome.
-      // We're creating a new range and add it to the selection to avoid the case.
-      if (selection.rangeCount === 0) {
-        range = doc.createRange()
-        selection.addRange(range)
-      } else {
-        range = selection.getRangeAt(0)
-      }
-
-      range.selectNodeContents(el)
+      selection.selectAllChildren(el)
     }
 
     toStart ? selection.collapseToStart() : selection.collapseToEnd()

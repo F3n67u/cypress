@@ -22,13 +22,13 @@
     // Description: Adds syntax highlighting for all gql tags.
     "apollographql.vscode-apollo",
 
-    // Name: WindiCSS Intellisense
-    // Description: Automatically sorts your WindiCSS classes.
-    "voorjaar.windicss-intellisense",
+    // Name: TailwindCSS Intellisense
+    // Description: Automatically sorts your TailwindCSS classes.
+    "bradlc.vscode-tailwindcss",
 
     // Name: Volar
     // Description: Language server for Vue. Required for any syntax highlighting in Vue files.
-    "johnsoncodehk.volar",
+    "Vue.volar",
 
     // Name: Code Spell Checker
     // Description: Add spell-checking help to your code.
@@ -69,7 +69,7 @@
 
     // Name: Toggle Quotes
 		// Description: Toggle cycle " -> ' -> `
-    "britesnow.vscode-toggle-quotes",
+		"britesnow.vscode-toggle-quotes",
 
     // Name: Gremlins tracker for Visual Studio Code
     // Description: When you paste from Slack, Figma, or Google Docs, you'll get stylized quotes.

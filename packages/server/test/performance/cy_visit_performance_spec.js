@@ -17,10 +17,6 @@ context('cy.visit performance tests', function () {
         })
       },
     },
-    settings: {
-      baseUrl: 'http://localhost:3434',
-      video: false,
-    },
   })
 
   const onStdout = (stdout) => {
@@ -28,8 +24,10 @@ context('cy.visit performance tests', function () {
   }
 
   systemTests.it('passes', {
+    browser: '!webkit', // TODO(webkit): does this really need to run in all browsers? currently it's broken in webkit because we are missing deps
+    configFile: 'cypress-performance.config.js',
     onStdout,
-    spec: 'fast_visit_spec.js',
+    spec: 'fast_visit.cy.js',
     snapshot: true,
     onRun (exec, browser, ctx) {
       return exec({

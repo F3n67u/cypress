@@ -1,7 +1,15 @@
 const _ = require('lodash')
 
-const createErrorResult = (errorMessage) => ({ isValid: false, error: new Error(errorMessage) })
-const createSuccessResult = () => ({ isValid: true })
+const createErrorResult = (errorMessage) => {
+  return {
+    isValid: false,
+    error: new Error(errorMessage),
+  }
+}
+
+const createSuccessResult = () => {
+  return { isValid: true }
+}
 
 const validate = (func, arg, errorMessage) => {
   return func(arg) ? createSuccessResult() : createErrorResult(errorMessage)
@@ -18,6 +26,8 @@ const isObject = (event, handler) => {
 const eventValidators = {
   '_get:task:body': isFunction,
   '_get:task:keys': isFunction,
+  '_process:cross:origin:callback': isFunction,
+  'after:browser:launch': isFunction,
   'after:run': isFunction,
   'after:screenshot': isFunction,
   'after:spec': isFunction,
@@ -29,22 +39,38 @@ const eventValidators = {
   'task': isObject,
 }
 
-const validateEvent = (event, handler, config) => {
+const validateEvent = (event, handler, config, errConstructorFn) => {
   const validator = eventValidators[event]
 
   if (!validator) {
-    const userEvents = _.reject(_.keys(eventValidators), (event) => event.startsWith('_'))
+    const userEvents = _.reject(_.keys(eventValidators), (event) => {
+      // we're currently not documenting after:browser:launch, so it shouldn't
+      // appear in the list of valid events
+      return event.startsWith('_') || event === 'after:browser:launch'
+    })
 
-    return createErrorResult(`You must pass a valid event name when registering a plugin.
+    const error = new Error(`invalid event name registered: ${event}`)
 
-You passed: \`${event}\`
+    error.name = 'InvalidEventNameError'
 
-The following are valid events:
-- ${userEvents.join('\n- ')}
-`)
+    Error.captureStackTrace(error, errConstructorFn)
+
+    return {
+      error,
+      userEvents,
+      isValid: false,
+    }
   }
 
-  return validator(event, handler, config)
+  const result = validator(event, handler, config)
+
+  if (!result.isValid) {
+    result.error.name = 'InvalidEventHandlerError'
+
+    Error.captureStackTrace(result.error, errConstructorFn)
+  }
+
+  return result
 }
 
 module.exports = validateEvent

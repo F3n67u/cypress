@@ -2,19 +2,16 @@ require('../spec_helper')
 
 const path = require('path')
 const Promise = require('bluebird')
-const config = require(`${root}lib/config`)
-const fixture = require(`${root}lib/fixture`)
-const { fs } = require(`${root}lib/util/fs`)
-const FixturesHelper = require('@tooling/system-tests/lib/fixtures')
-const os = require('os')
-const eol = require('eol')
+const fixture = require(`../../lib/fixture`)
+const { fs } = require(`../../lib/util/fs`)
+const FixturesHelper = require('@tooling/system-tests')
+const { getCtx } = require(`../../lib/makeDataContext`)
 
-const isWindows = () => {
-  return os.platform() === 'win32'
-}
+let ctx
 
 describe('lib/fixture', () => {
-  beforeEach(function () {
+  beforeEach(async function () {
+    ctx = getCtx()
     FixturesHelper.scaffold()
 
     this.todosPath = FixturesHelper.projectPath('todos')
@@ -22,7 +19,10 @@ describe('lib/fixture', () => {
       return fs.readFileAsync(path.join(folder, image), encoding)
     }
 
-    return config.get(this.todosPath).then((cfg) => {
+    await ctx.actions.project.setCurrentProjectAndTestingTypeForTestSetup(this.todosPath)
+
+    return ctx.lifecycleManager.getFullInitialConfig()
+    .then((cfg) => {
       ({ fixturesFolder: this.fixturesFolder } = cfg)
     })
   })
@@ -69,29 +69,13 @@ describe('lib/fixture', () => {
   context('json files', () => {
     it('throws when json is invalid', function () {
       const e =
-        `\
-'bad_json.json' is not valid JSON.
-Parse error on line 2:
-{  "bad": "json"  "should": "not parse
-------------------^
-Expecting 'EOF', '}', ':', ',', ']', got 'STRING'\
-`
+        `\'bad_json.json\' is not valid JSON.\nExpected ',' or '}' after property value in JSON at position 20 while parsing near "{\\n  \\"bad\\": \\"json\\"\\n  \\"should\\": \\"not parse..."`
 
       return fixture.get(this.fixturesFolder, 'bad_json.json')
       .then(() => {
         throw new Error('should have failed but did not')
       }).catch((err) => {
-        if (isWindows()) {
-          // there is weird trailing whitespace in the lines
-          // of the error message on Windows
-          expect(err.message).to.include('\'bad_json.json\' is not valid JSON.')
-          expect(err.message).to.include('Parse error on line 2:')
-
-          expect(err.message).to.include('Expecting \'EOF\', \'}\', \':\', \',\', \']\', got \'STRING\'')
-        } else {
-          // on other platforms can match the error directly
-          expect(eol.auto(err.message)).to.eq(eol.auto(e))
-        }
+        expect(err.message).to.eq(e)
       })
     })
 
@@ -148,6 +132,9 @@ Expecting 'EOF', '}', ':', ',', ']', got 'STRING'\
     })
 
     it('does not reformat empty objects', function () {
+      // TODO: fix flaky test https://github.com/cypress-io/cypress/issues/23457
+      this.retries(15)
+
       const fn = () => {
         return fixture.get(this.fixturesFolder, 'empty_objects')
       }
@@ -169,10 +156,12 @@ Expecting 'EOF', '}', ':', ',', ']', got 'STRING'\
     })
 
     // https://github.com/cypress-io/cypress/issues/3739
-    it('can load a fixture with no extension when a same-named folder also exists', () => {
+    it('can load a fixture with no extension when a same-named folder also exists', async () => {
       const projectPath = FixturesHelper.projectPath('folder-same-as-fixture')
 
-      return config.get(projectPath)
+      await ctx.actions.project.setCurrentProjectAndTestingTypeForTestSetup(projectPath)
+
+      return ctx.lifecycleManager.getFullInitialConfig()
       .then((cfg) => {
         return fixture.get(cfg.fixturesFolder, 'foo')
         .then((result) => {

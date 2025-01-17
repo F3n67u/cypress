@@ -1,4 +1,5 @@
-import { observable } from 'mobx'
+import { observable, makeObservable } from 'mobx'
+import { Instrument, TestState } from '@packages/types'
 
 export interface AliasObject {
   name: string
@@ -11,30 +12,33 @@ export type Alias = string | Array<string> | null | AliasObject | Array<AliasObj
 export interface InstrumentProps {
   id: number
   alias?: Alias
-  aliasType?: string | null
+  aliasType?: 'agent' | 'dom' | 'primitive' | 'route'
   displayName?: string
   name?: string
   message?: string
-  type?: string
+  // parent / child / system - command log type
+  type?: 'parent' | 'child' | 'system'
   testCurrentRetry?: number
-  state?: string | null
+  state: TestState
   referencesAlias?: Alias
-  instrument?: 'agent' | 'command' | 'route'
+  instrument?: Instrument
   testId: string
 }
 
 export default class Log {
-  @observable.ref alias?: Alias = null
-  @observable aliasType?: string | null = null
+  @observable.ref alias?: Alias
+  @observable aliasType?: string
   @observable displayName?: string
   @observable id?: number
   @observable name?: string
   @observable message?: string
   @observable type?: string
-  @observable state?: string | null
-  @observable.ref referencesAlias?: Alias = null
+  @observable state: string
+  @observable.ref referencesAlias?: Alias
+  testId: string
 
   constructor (props: InstrumentProps) {
+    makeObservable(this)
     this.id = props.id
     this.alias = props.alias
     this.aliasType = props.aliasType
@@ -44,6 +48,7 @@ export default class Log {
     this.type = props.type
     this.state = props.state
     this.referencesAlias = props.referencesAlias
+    this.testId = props.testId
   }
 
   update (props: InstrumentProps) {

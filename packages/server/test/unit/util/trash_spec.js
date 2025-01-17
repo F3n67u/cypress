@@ -1,9 +1,11 @@
+const mockFs = require('mock-fs')
+
 require('../../spec_helper')
 
 const fs = require('fs')
 const os = require('os')
 const path = require('path')
-const trash = require(`${root}../lib/util/trash`)
+const trash = require(`../../../lib/util/trash`)
 
 const populateDirectories = function (basePath) {
   fs.mkdirSync(basePath)
@@ -29,10 +31,19 @@ const expectDirectoriesExist = function (basePath) {
 }
 
 describe('lib/util/trash', () => {
+  beforeEach(() => {
+    sinon.stub(process, 'cwd').returns(os.tmpdir())
+    mockFs({})
+  })
+
+  afterEach(() => {
+    mockFs.restore()
+  })
+
   context('.folder', () => {
     it('trashes contents of directory in non-Linux', () => {
       sinon.stub(os, 'platform').returns('darwin')
-      const basePath = path.join('foo')
+      const basePath = 'foo'
 
       populateDirectories(basePath)
 
@@ -43,7 +54,7 @@ describe('lib/util/trash', () => {
       })
     })
 
-    it('doesn\'t fail if directory is non-existent', () => {
+    it(`doesn't fail if directory is non-existent`, () => {
       return trash.folder('bar')
       .tapCatch(() => {
         throw new Error('should not have errored')
@@ -52,7 +63,7 @@ describe('lib/util/trash', () => {
 
     it('completely removes directory on Linux', () => {
       sinon.stub(os, 'platform').returns('linux')
-      const basePath = path.join('foo')
+      const basePath = 'foo'
 
       populateDirectories(basePath)
 

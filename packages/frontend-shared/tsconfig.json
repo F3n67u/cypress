@@ -1,0 +1,24 @@
+{
+  "extends": "../ts/tsconfig.json",
+  "compilerOptions": {
+    "module": "esnext",
+    "lib": ["dom", "ESNext"],
+    "jsx": "preserve",
+    "preserveWatchOutput": true,
+    "noImplicitThis": false,
+    "noErrorTruncation": true,
+    "paths": {
+      "@cy/i18n": ["../frontend-shared/src/locales/i18n"],
+      "@cy/components/*": ["../frontend-shared/src/components/*"]
+    },
+    "types": [
+      "chrome",
+      "./vue-shims",
+      "./vite-env",
+      "@intlify/unplugin-vue-i18n/messages",
+      "@testing-library/cypress",
+      "cypress-real-events", 
+      "cypress"
+    ],
+  }
+}

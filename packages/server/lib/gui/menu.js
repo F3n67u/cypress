@@ -4,21 +4,15 @@ const { Menu } = require('electron')
 const { shell } = require('electron')
 
 const appData = require('../util/app_data')
-const open = require('../util/open')
 
-let onLogOutClicked = function () {}
+// hoist up options and allow calling menu.set({})
+// to override existing options or be called multiple
+// times to preserve existing options
+let options = {}
 
 module.exports = {
-  set (options = {}) {
-    _.defaults(options, {
-      withDevTools: false,
-    })
-
-    // this set by modes/interactive and needs to be preserved if the menu
-    // is set again by launcher when the Electron browser is run
-    if (options.onLogOutClicked) {
-      ({ onLogOutClicked } = options)
-    }
+  set (opts = {}) {
+    _.extend(options, opts)
 
     const template = [
       {
@@ -41,7 +35,7 @@ module.exports = {
           },
           {
             label: 'Log Out',
-            click: onLogOutClicked,
+            click: options.onLogOutClicked,
           },
           {
             type: 'separator',
@@ -49,7 +43,7 @@ module.exports = {
           {
             label: 'View App Data',
             click () {
-              return open.opn(appData.path())
+              return shell.openPath(appData.path())
             },
           },
           {
@@ -172,39 +166,68 @@ module.exports = {
       })
     }
 
-    if (options.withDevTools) {
-      template.push(
-        {
-          label: 'Developer Tools',
-          submenu: [
-            {
-              label: 'Reload',
-              accelerator: 'CmdOrCtrl+R',
-              click: (item, focusedWindow) => {
-                if (focusedWindow) {
-                  return focusedWindow.reload()
-                }
-              },
-            },
-            {
-              label: 'Toggle Developer Tools',
-              accelerator: (() => {
-                if (os.platform() === 'darwin') {
-                  return 'Alt+Command+I'
-                }
-
-                return 'Ctrl+Shift+I'
-              })(),
-              click: (item, focusedWindow) => {
-                if (focusedWindow) {
-                  return focusedWindow.toggleDevTools()
-                }
-              },
-            },
-          ],
+    let devToolsSubmenu = [
+      {
+        label: 'Reload',
+        accelerator: 'CmdOrCtrl+R',
+        click: (item, focusedWindow) => {
+          if (focusedWindow) {
+            return focusedWindow.reload()
+          }
         },
-      )
+      },
+      {
+        label: 'Toggle Developer Tools',
+        accelerator: (() => {
+          if (os.platform() === 'darwin') {
+            return 'Alt+Command+I'
+          }
+
+          return 'Ctrl+Shift+I'
+        })(),
+        click: (item, focusedWindow) => {
+          if (focusedWindow) {
+            return focusedWindow.toggleDevTools()
+          }
+        },
+      },
+      {
+        label: 'View App Data',
+        click () {
+          return shell.openPath(appData.path())
+        },
+      },
+    ]
+
+    if (options.withInternalDevTools) {
+      devToolsSubmenu = devToolsSubmenu.concat([
+        {
+          label: `GraphQL requests over Fetch (${process.env.CYPRESS_INTERNAL_GQL_NO_SOCKET ? 'on' : 'off'})`,
+          click: (item, focusedWindow) => {
+            if (process.env.CYPRESS_INTERNAL_GQL_NO_SOCKET) {
+              delete process.env.CYPRESS_INTERNAL_GQL_NO_SOCKET
+            } else {
+              process.env.CYPRESS_INTERNAL_GQL_NO_SOCKET = '1'
+            }
+
+            this.set(opts)
+          },
+        },
+        {
+          label: 'GraphiQL',
+          click () {
+            return shell.openExternal(`http://localhost:${options.getGraphQLPort()}/__launchpad/graphql`)
+          },
+        },
+      ])
     }
+
+    template.push(
+      {
+        label: 'Developer Tools',
+        submenu: devToolsSubmenu,
+      },
+    )
 
     const menu = Menu.buildFromTemplate(template)
 

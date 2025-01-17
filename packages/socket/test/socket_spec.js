@@ -1,12 +1,12 @@
 const fs = require('fs')
 const path = require('path')
 const server = require('socket.io')
-const client = require('socket.io-client')
 const parser = require('socket.io-parser')
 const { hasBinary } = require('socket.io-parser/dist/is-binary')
 const expect = require('chai').expect
 const pkg = require('../package.json')
 const lib = require('../index')
+const browserLib = require('../lib/browser')
 const resolvePkg = require('resolve-pkg')
 
 const { PacketType } = parser
@@ -16,8 +16,33 @@ describe('Socket', function () {
     expect(lib.server).to.eq(server)
   })
 
-  it('exports client', function () {
-    expect(lib.client).to.eq(client)
+  it('exports client from lib/browser', function () {
+    expect(browserLib.client).to.be.defined
+  })
+
+  it('exports createWebSocket from lib/browser', function () {
+    expect(browserLib.createWebsocket).to.be.defined
+  })
+
+  it('creates a websocket for non chromium and non webkit browsers', function () {
+    const socket = browserLib.createWebsocket({ path: '/path', browserFamily: 'firefox' })
+
+    expect(socket.io.opts.path).to.eq('/path')
+    expect(socket.io.opts.transports[0]).to.eq('websocket')
+  })
+
+  it('creates a websocket for chromium browsers', function () {
+    global.window = {}
+    const socket = browserLib.createWebsocket({ path: '/path', browserFamily: 'chromium' })
+
+    expect(socket._namespace).to.eq('/path/default')
+  })
+
+  it('creates a websocket for webkit browsers', function () {
+    const socket = browserLib.createWebsocket({ path: '/path', browserFamily: 'webkit' })
+
+    expect(socket.io.opts.path).to.eq('/path')
+    expect(socket.io.opts.transports[0]).to.eq('polling')
   })
 
   context('.getPathToClientSource', function () {
@@ -35,19 +60,6 @@ describe('Socket', function () {
   context('.getClientVersion', function () {
     it('returns client version', function () {
       expect(lib.getClientVersion()).to.eq(pkg.dependencies['socket.io-client'])
-    })
-  })
-
-  context('.getClientSource', function () {
-    it('returns client source as a string', function (done) {
-      const clientPath = path.join(resolvePkg('socket.io-client'), 'dist', 'socket.io.js')
-
-      fs.readFile(clientPath, 'utf8', function (err, str) {
-        if (err) done(err)
-
-        expect(lib.getClientSource()).to.eq(str)
-        done()
-      })
     })
   })
 

@@ -16,6 +16,23 @@ const reFile = /^file:\/\//
 const reLocalHost = /^(localhost|0\.0\.0\.0|127\.0\.0\.1)/
 const reQueryParam = /\?[^/]+/
 
+export interface LocationObject {
+  auth: string
+  authObj?: Cypress.Auth
+  hash: string
+  href: string
+  host: string
+  hostname: string
+  origin: string
+  pathname: string
+  port: number
+  protocol: string
+  search: string
+  superDomainOrigin: string
+  superDomain: string
+  toString: () => string
+}
+
 export class $Location {
   remote: UrlParse
 
@@ -63,15 +80,6 @@ export class $Location {
     return this.remote.hostname
   }
 
-  getOrigin () {
-    // https://github.com/unshiftio/url-parse/issues/38
-    if (this.remote.origin === 'null') {
-      return null
-    }
-
-    return this.remote.origin
-  }
-
   getProtocol () {
     return this.remote.protocol
   }
@@ -88,14 +96,17 @@ export class $Location {
     return this.remote.query
   }
 
-  getOriginPolicy () {
-    // origin policy is comprised of
-    // protocol + superdomain
-    // and subdomain is not factored in
-    return _.compact([
-      `${this.getProtocol()}//${this.getSuperDomain()}`,
-      this.getPort(),
-    ]).join(':')
+  getOrigin () {
+    // https://github.com/unshiftio/url-parse/issues/38
+    if (this.remote.origin === 'null') {
+      return null
+    }
+
+    return this.remote.origin
+  }
+
+  getSuperDomainOrigin () {
+    return cors.getSuperDomainOrigin(this.remote.href)
   }
 
   getSuperDomain () {
@@ -106,7 +117,7 @@ export class $Location {
     return this.remote.toString()
   }
 
-  getObject () {
+  getObject (): LocationObject {
     return {
       auth: this.getAuth(),
       authObj: this.getAuthObj(),
@@ -119,7 +130,7 @@ export class $Location {
       port: this.getPort(),
       protocol: this.getProtocol(),
       search: this.getSearch(),
-      originPolicy: this.getOriginPolicy(),
+      superDomainOrigin: this.getSuperDomainOrigin(),
       superDomain: this.getSuperDomain(),
       toString: _.bind(this.getToString, this),
     }
@@ -249,7 +260,7 @@ export class $Location {
     return new URL(to, from).toString()
   }
 
-  static create (remote) {
+  static create (remote): LocationObject {
     const location = new $Location(remote)
 
     return location.getObject()

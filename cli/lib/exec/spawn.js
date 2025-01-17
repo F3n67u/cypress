@@ -4,19 +4,87 @@ const cp = require('child_process')
 const path = require('path')
 const Promise = require('bluebird')
 const debug = require('debug')('cypress:cli')
-const debugElectron = require('debug')('cypress:electron')
+const debugVerbose = require('debug')('cypress-verbose:cli')
 
 const util = require('../util')
 const state = require('../tasks/state')
 const xvfb = require('./xvfb')
 const verify = require('../tasks/verify')
 const errors = require('../errors')
+const readline = require('readline')
 
 const isXlibOrLibudevRe = /^(?:Xlib|libudev)/
 const isHighSierraWarningRe = /\*\*\* WARNING/
 const isRenderWorkerRe = /\.RenderWorker-/
 
-const GARBAGE_WARNINGS = [isXlibOrLibudevRe, isHighSierraWarningRe, isRenderWorkerRe]
+// Chromium (which Electron uses) always makes several attempts to connect to the system dbus.
+// This works fine in most desktop environments, but in a docker container, there is no dbus service
+// and Chromium emits several error lines, similar to these:
+
+// [1957:0406/160550.146820:ERROR:bus.cc(392)] Failed to connect to the bus: Failed to connect to socket /var/run/dbus/system_bus_socket: No such file or directory
+// [1957:0406/160550.147994:ERROR:bus.cc(392)] Failed to connect to the bus: Address does not contain a colon
+
+// These warnings are absolutely harmless. Failure to connect to dbus means that electron won't be able to access the user's
+// credential wallet (none exists in a docker container) and won't show up in the system tray (again, none exists).
+// Failure to connect is expected and normal here, but users frequently misidentify these errors as the cause of their problems.
+
+// https://github.com/cypress-io/cypress/issues/19299
+const isDbusWarning = /Failed to connect to the bus:/
+
+// Electron began logging these on self-signed certs with 17.0.0-alpha.4.
+// Once this is fixed upstream this regex can be removed: https://github.com/electron/electron/issues/34583
+// Sample:
+// [3801:0606/152837.383892:ERROR:cert_verify_proc_builtin.cc(681)] CertVerifyProcBuiltin for www.googletagmanager.com failed:
+// ----- Certificate i=0 (OU=Cypress Proxy Server Certificate,O=Cypress Proxy CA,L=Internet,ST=Internet,C=Internet,CN=www.googletagmanager.com) -----
+// ERROR: No matching issuer found
+const isCertVerifyProcBuiltin = /(^\[.*ERROR:cert_verify_proc_builtin\.cc|^----- Certificate i=0 \(OU=Cypress Proxy|^ERROR: No matching issuer found$)/
+
+/**
+ * Electron logs benign warnings about Vulkan when run on hosts that do not have a GPU. This is coming from the primary Electron process,
+ * and not the browser being used for tests.
+ * Samples:
+ * Warning: loader_scanned_icd_add: Driver /usr/lib/x86_64-linux-gnu/libvulkan_intel.so supports Vulkan 1.2, but only supports loader interface version 4. Interface version 5 or newer required to support this version of Vulkan (Policy #LDP_DRIVER_7)
+ * Warning: loader_scanned_icd_add: Driver /usr/lib/x86_64-linux-gnu/libvulkan_lvp.so supports Vulkan 1.1, but only supports loader interface version 4. Interface version 5 or newer required to support this version of Vulkan (Policy #LDP_DRIVER_7)
+ * Warning: loader_scanned_icd_add: Driver /usr/lib/x86_64-linux-gnu/libvulkan_radeon.so supports Vulkan 1.2, but only supports loader interface version 4. Interface version 5 or newer required to support this verison of Vulkan (Policy #LDP_DRIVER_7)
+ * Warning: Layer VK_LAYER_MESA_device_select uses API version 1.2 which is older than the application specified API version of 1.3. May cause issues.
+ */
+
+const isHostVulkanDriverWarning = /^Warning:.+(#LDP_DRIVER_7|VK_LAYER_MESA_device_select).+/
+
+/**
+ * Electron logs benign warnings about Vulkan when run in docker containers whose host does not have a GPU. This is coming from the primary
+ * Electron process, and not the browser being used for tests.
+ * Sample:
+ * Warning: vkCreateInstance: Found no drivers!
+ * Warning: vkCreateInstance failed with VK_ERROR_INCOMPATIBLE_DRIVER
+ *     at CheckVkSuccessImpl (../../third_party/dawn/src/dawn/native/vulkan/VulkanError.cpp:88)
+ *     at CreateVkInstance (../../third_party/dawn/src/dawn/native/vulkan/BackendVk.cpp:458)
+ *     at Initialize (../../third_party/dawn/src/dawn/native/vulkan/BackendVk.cpp:344)
+ *     at Create (../../third_party/dawn/src/dawn/native/vulkan/BackendVk.cpp:266)
+ *     at operator() (../../third_party/dawn/src/dawn/native/vulkan/BackendVk.cpp:521)
+ */
+
+const isContainerVulkanDriverWarning = /^Warning: vkCreateInstance/
+
+const isContainerVulkanStack = /^\s*at (CheckVkSuccessImpl|CreateVkInstance|Initialize|Create|operator).+(VulkanError|BackendVk).cpp/
+
+/**
+ * In Electron 32.0.0 a new debug scenario log message started appearing when iframes navigate to about:blank. This is a benign message.
+ * https://github.com/electron/electron/issues/44368
+ * Sample:
+ * [78887:1023/114920.074882:ERROR:debug_utils.cc(14)] Hit debug scenario: 4
+ */
+const isDebugScenario4 = /^\[[^\]]+debug_utils\.cc[^\]]+\] Hit debug scenario: 4/
+
+/**
+ * In Electron 32.0.0 a new EGL driver message started appearing when running on Linux. This is a benign message.
+ * https://github.com/electron/electron/issues/43415
+ * Sample:
+ * [78887:1023/114920.074882:ERROR:gl_display.cc(14)] EGL Driver message (Error) eglQueryDeviceAttribEXT: Bad attribute.
+ */
+const isEGLDriverMessage = /^\[[^\]]+gl_display\.cc[^\]]+\] EGL Driver message \(Error\) eglQueryDeviceAttribEXT: Bad attribute\./
+
+const GARBAGE_WARNINGS = [isXlibOrLibudevRe, isHighSierraWarningRe, isRenderWorkerRe, isDbusWarning, isCertVerifyProcBuiltin, isHostVulkanDriverWarning, isContainerVulkanDriverWarning, isContainerVulkanStack, isDebugScenario4, isEGLDriverMessage]
 
 const isGarbageLineWarning = (str) => {
   return _.some(GARBAGE_WARNINGS, (re) => {
@@ -94,21 +162,20 @@ module.exports = {
       return new Promise((resolve, reject) => {
         _.defaults(overrides, {
           onStderrData: false,
-          electronLogging: false,
         })
 
-        const { onStderrData, electronLogging } = overrides
+        const { onStderrData } = overrides
         const envOverrides = util.getEnvOverrides(options)
         const electronArgs = []
         const node11WindowsFix = isPlatform('win32')
 
+        let startScriptPath
+
         if (options.dev) {
+          executable = 'node'
           // if we're in dev then reset
           // the launch cmd to be 'npm run dev'
-          executable = 'node'
-          electronArgs.unshift(
-            path.resolve(__dirname, '..', '..', '..', 'scripts', 'start.js'),
-          )
+          startScriptPath = path.resolve(__dirname, '..', '..', '..', 'scripts', 'start.js'),
 
           debug('in dev mode the args became %o', args)
         }
@@ -118,6 +185,9 @@ module.exports = {
         }
 
         // strip dev out of child process options
+        /**
+         * @type {import('child_process').ForkOptions}
+         */
         let stdioOptions = _.pick(options, 'env', 'detached', 'stdio')
 
         // figure out if we're going to be force enabling or disabling colors.
@@ -129,10 +199,6 @@ module.exports = {
           stdioOptions = _.extend({}, stdioOptions, { windowsHide: false })
         }
 
-        if (electronLogging) {
-          stdioOptions.env.ELECTRON_ENABLE_LOGGING = true
-        }
-
         if (util.isPossibleLinuxWithIncorrectDisplay()) {
           // make sure we use the latest DISPLAY variable if any
           debug('passing DISPLAY', process.env.DISPLAY)
@@ -141,9 +207,7 @@ module.exports = {
 
         if (stdioOptions.env.ELECTRON_RUN_AS_NODE) {
           // Since we are running electron as node, we need to add an entry point file.
-          const serverEntryPoint = path.join(state.getBinaryPkgPath(path.dirname(executable)), '..', 'index.js')
-
-          args = [serverEntryPoint, ...args]
+          startScriptPath = path.join(state.getBinaryPkgPath(path.dirname(executable)), '..', 'index.js')
         } else {
           // Start arguments with "--" so Electron knows these are OUR
           // arguments and does not try to sanitize them. Otherwise on Windows
@@ -152,8 +216,17 @@ module.exports = {
           args = [...electronArgs, '--', ...args]
         }
 
-        debug('spawning Cypress with executable: %s', executable)
+        if (startScriptPath) {
+          args.unshift(startScriptPath)
+        }
+
+        if (process.env.CYPRESS_INTERNAL_DEV_DEBUG) {
+          args.unshift(process.env.CYPRESS_INTERNAL_DEV_DEBUG)
+        }
+
         debug('spawn args %o %o', args, _.omit(stdioOptions, 'env'))
+        debug('spawning Cypress with executable: %s', executable)
+
         const child = cp.spawn(executable, args, stdioOptions)
 
         function resolveOn (event) {
@@ -173,6 +246,21 @@ module.exports = {
         child.on('close', resolveOn('close'))
         child.on('exit', resolveOn('exit'))
         child.on('error', reject)
+
+        if (isPlatform('win32')) {
+          const rl = readline.createInterface({
+            input: process.stdin,
+            output: process.stdout,
+          })
+
+          // on windows, SIGINT does not propagate to the child process when ctrl+c is pressed
+          // this makes sure all nested processes are closed(ex: firefox inside the server)
+          rl.on('SIGINT', function () {
+            let kill = require('tree-kill')
+
+            kill(child.pid, 'SIGINT')
+          })
+        }
 
         // if stdio options is set to 'pipe', then
         //   we should set up pipes:
@@ -198,12 +286,14 @@ module.exports = {
 
             // bail if this is warning line garbage
             if (isGarbageLineWarning(str)) {
+              debugVerbose(str)
+
               return
             }
 
-            // if we have a callback and this explictly returns
+            // if we have a callback and this explicitly returns
             // false then bail
-            if (onStderrData && onStderrData(str) === false) {
+            if (onStderrData && onStderrData(str)) {
               return
             }
 
@@ -255,13 +345,6 @@ module.exports = {
             // then we know that's why cypress exited early
             if (util.isBrokenGtkDisplay(str)) {
               brokenGtkDisplay = true
-            }
-
-            // we should attempt to always slurp up
-            // the stderr logs unless we've explicitly
-            // enabled the electron debug logging
-            if (!debugElectron.enabled) {
-              return false
             }
           },
         })

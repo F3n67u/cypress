@@ -7,14 +7,14 @@ exports['e2e commands outside of test / passes on passing assertions'] = `
   ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
   │ Cypress:    1.2.3                                                                              │
   │ Browser:    FooBrowser 88                                                                      │
-  │ Specs:      1 found (assertions_passing_outside_of_test_spec.js)                               │
-  │ Searched:   cypress/integration/assertions_passing_outside_of_test_spec.js                     │
+  │ Specs:      1 found (assertions_passing_outside_of_test.cy.js)                                 │
+  │ Searched:   cypress/e2e/assertions_passing_outside_of_test.cy.js                               │
   └────────────────────────────────────────────────────────────────────────────────────────────────┘
 
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────
                                                                                                     
-  Running:  assertions_passing_outside_of_test_spec.js                                      (1 of 1)
+  Running:  assertions_passing_outside_of_test.cy.js                                        (1 of 1)
 
 
   0 passing
@@ -29,17 +29,10 @@ exports['e2e commands outside of test / passes on passing assertions'] = `
   │ Pending:      0                                                                                │
   │ Skipped:      0                                                                                │
   │ Screenshots:  0                                                                                │
-  │ Video:        true                                                                             │
+  │ Video:        false                                                                            │
   │ Duration:     X seconds                                                                        │
-  │ Spec Ran:     assertions_passing_outside_of_test_spec.js                                       │
+  │ Spec Ran:     assertions_passing_outside_of_test.cy.js                                         │
   └────────────────────────────────────────────────────────────────────────────────────────────────┘
-
-
-  (Video)
-
-  -  Started processing:  Compressing to 32 CRF                                                     
-  -  Finished processing: /XXX/XXX/XXX/cypress/videos/assertions_passing_outside_of_t     (X second)
-                          est_spec.js.mp4                                                           
 
 
 ====================================================================================================
@@ -49,8 +42,8 @@ exports['e2e commands outside of test / passes on passing assertions'] = `
 
        Spec                                              Tests  Passing  Failing  Pending  Skipped  
   ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
-  │ ✔  assertions_passing_outside_of_test_      XX:XX        -        -        -        -        - │
-  │    spec.js                                                                                     │
+  │ ✔  assertions_passing_outside_of_test.      XX:XX        -        -        -        -        - │
+  │    cy.js                                                                                       │
   └────────────────────────────────────────────────────────────────────────────────────────────────┘
     ✔  All specs passed!                        XX:XX        -        -        -        -        -  
 
@@ -66,14 +59,14 @@ exports['e2e commands outside of test / fails on failing assertions'] = `
   ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
   │ Cypress:    1.2.3                                                                              │
   │ Browser:    FooBrowser 88                                                                      │
-  │ Specs:      1 found (assertions_failing_outside_of_test_spec.js)                               │
-  │ Searched:   cypress/integration/assertions_failing_outside_of_test_spec.js                     │
+  │ Specs:      1 found (assertions_failing_outside_of_test.cy.js)                                 │
+  │ Searched:   cypress/e2e/assertions_failing_outside_of_test.cy.js                               │
   └────────────────────────────────────────────────────────────────────────────────────────────────┘
 
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────
                                                                                                     
-  Running:  assertions_failing_outside_of_test_spec.js                                      (1 of 1)
+  Running:  assertions_failing_outside_of_test.cy.js                                        (1 of 1)
 
 
   1) An uncaught error was detected outside of a test
@@ -105,23 +98,16 @@ We dynamically generated a new test to display this failure.
   │ Pending:      0                                                                                │
   │ Skipped:      0                                                                                │
   │ Screenshots:  1                                                                                │
-  │ Video:        true                                                                             │
+  │ Video:        false                                                                            │
   │ Duration:     X seconds                                                                        │
-  │ Spec Ran:     assertions_failing_outside_of_test_spec.js                                       │
+  │ Spec Ran:     assertions_failing_outside_of_test.cy.js                                         │
   └────────────────────────────────────────────────────────────────────────────────────────────────┘
 
 
   (Screenshots)
 
-  -  /XXX/XXX/XXX/cypress/screenshots/assertions_failing_outside_of_test_spec.js/An u     (1280x720)
-     ncaught error was detected outside of a test (failed).png                                      
-
-
-  (Video)
-
-  -  Started processing:  Compressing to 32 CRF                                                     
-  -  Finished processing: /XXX/XXX/XXX/cypress/videos/assertions_failing_outside_of_t     (X second)
-                          est_spec.js.mp4                                                           
+  -  /XXX/XXX/XXX/cypress/screenshots/assertions_failing_outside_of_test.cy.js/An unc     (1280x720)
+     aught error was detected outside of a test (failed).png                                        
 
 
 ====================================================================================================
@@ -131,8 +117,8 @@ We dynamically generated a new test to display this failure.
 
        Spec                                              Tests  Passing  Failing  Pending  Skipped  
   ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
-  │ ✖  assertions_failing_outside_of_test_      XX:XX        1        -        1        -        - │
-  │    spec.js                                                                                     │
+  │ ✖  assertions_failing_outside_of_test.      XX:XX        1        -        1        -        - │
+  │    cy.js                                                                                       │
   └────────────────────────────────────────────────────────────────────────────────────────────────┘
     ✖  1 of 1 failed (100%)                     XX:XX        1        -        1        -        -  
 
@@ -148,14 +134,14 @@ exports['e2e commands outside of test / fails on cy commands'] = `
   ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
   │ Cypress:    1.2.3                                                                              │
   │ Browser:    FooBrowser 88                                                                      │
-  │ Specs:      1 found (commands_outside_of_test_spec.js)                                         │
-  │ Searched:   cypress/integration/commands_outside_of_test_spec.js                               │
+  │ Specs:      1 found (commands_outside_of_test.cy.js)                                           │
+  │ Searched:   cypress/e2e/commands_outside_of_test.cy.js                                         │
   └────────────────────────────────────────────────────────────────────────────────────────────────┘
 
 
 ────────────────────────────────────────────────────────────────────────────────────────────────────
                                                                                                     
-  Running:  commands_outside_of_test_spec.js                                                (1 of 1)
+  Running:  commands_outside_of_test.cy.js                                                  (1 of 1)
 
 
   1) An uncaught error was detected outside of a test
@@ -195,23 +181,16 @@ https://on.cypress.io/cannot-execute-commands-outside-test
   │ Pending:      0                                                                                │
   │ Skipped:      0                                                                                │
   │ Screenshots:  1                                                                                │
-  │ Video:        true                                                                             │
+  │ Video:        false                                                                            │
   │ Duration:     X seconds                                                                        │
-  │ Spec Ran:     commands_outside_of_test_spec.js                                                 │
+  │ Spec Ran:     commands_outside_of_test.cy.js                                                   │
   └────────────────────────────────────────────────────────────────────────────────────────────────┘
 
 
   (Screenshots)
 
-  -  /XXX/XXX/XXX/cypress/screenshots/commands_outside_of_test_spec.js/An uncaught er     (1280x720)
-     ror was detected outside of a test (failed).png                                                
-
-
-  (Video)
-
-  -  Started processing:  Compressing to 32 CRF                                                     
-  -  Finished processing: /XXX/XXX/XXX/cypress/videos/commands_outside_of_test_spec.j     (X second)
-                          s.mp4                                                                     
+  -  /XXX/XXX/XXX/cypress/screenshots/commands_outside_of_test.cy.js/An uncaught erro     (1280x720)
+     r was detected outside of a test (failed).png                                                  
 
 
 ====================================================================================================
@@ -221,7 +200,7 @@ https://on.cypress.io/cannot-execute-commands-outside-test
 
        Spec                                              Tests  Passing  Failing  Pending  Skipped  
   ┌────────────────────────────────────────────────────────────────────────────────────────────────┐
-  │ ✖  commands_outside_of_test_spec.js         XX:XX        1        -        1        -        - │
+  │ ✖  commands_outside_of_test.cy.js           XX:XX        1        -        1        -        - │
   └────────────────────────────────────────────────────────────────────────────────────────────────┘
     ✖  1 of 1 failed (100%)                     XX:XX        1        -        1        -        -  
 

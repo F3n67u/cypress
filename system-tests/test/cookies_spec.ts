@@ -10,6 +10,10 @@ const it = systemTests.it
 const onServer = function (app) {
   app.use(parser())
 
+  app.get('/', (req, res) => {
+    return res.send('<html></html>')
+  })
+
   app.get('/logout', (req, res) => {
     return res.send('<html>logged out</html>')
   })
@@ -159,13 +163,8 @@ const otherDomain = 'quux.bar.net'
 const otherUrl = `http://${otherDomain}${haveRoot ? '' : `:${httpPort}`}`
 const otherHttpsUrl = `https://${otherDomain}${haveRoot ? '' : `:${httpsPort}`}`
 
-const chromiumSameSiteFeatures = '--enable-features=SameSiteByDefaultCookies,CookiesWithoutSameSiteMustBeSecure'
-
-// SameSite is loosely enforced in some versions of FF/Electron/Chromium,
-// but all have options we can use to force it to be strict
 const FORCED_SAMESITE_ENV = {
-  ELECTRON_EXTRA_LAUNCH_ARGS: chromiumSameSiteFeatures,
-  CHROMIUM_EXTRA_LAUNCH_ARGS: chromiumSameSiteFeatures,
+  // SameSite is loosely enforced in Firefox
   FIREFOX_FORCE_STRICT_SAMESITE: 1,
 }
 
@@ -183,6 +182,7 @@ describe('e2e cookies', () => {
       https: true,
     }],
     settings: {
+      e2e: {},
       hosts: {
         '*.foo.com': '127.0.0.1',
         '*.bar.net': '127.0.0.1',
@@ -197,6 +197,7 @@ describe('e2e cookies', () => {
     // once browsers are shipping with the options in FORCED_SAMESITE_ENV as default,
     // we can remove this extra test case
     it('with forced SameSite strictness', {
+      browser: '!webkit', // TODO(webkit): fix+unskip
       config: {
         baseUrl,
         env: {
@@ -210,7 +211,7 @@ describe('e2e cookies', () => {
         },
       },
       processEnv: FORCED_SAMESITE_ENV,
-      spec: 'cookies_spec_baseurl.js',
+      spec: 'cookies_spec_baseurl.cy.js',
       snapshot: true,
       onRun: (exec) => {
         return exec({
@@ -250,6 +251,7 @@ describe('e2e cookies', () => {
         ],
       ) => {
         it(`passes with baseurl: ${baseUrl}`, {
+          browser: '!webkit', // TODO(webkit): fix+unskip
           config: {
             baseUrl,
             env: {
@@ -262,7 +264,7 @@ describe('e2e cookies', () => {
               otherHttpsUrl,
             },
           },
-          spec: 'cookies_spec_baseurl.js',
+          spec: 'cookies_spec_baseurl.cy.js',
           snapshot: true,
           onRun: (exec) => {
             return exec({
@@ -273,6 +275,7 @@ describe('e2e cookies', () => {
       })
 
       it('passes with no baseurl', {
+        browser: '!webkit', // TODO(webkit): fix+unskip
         config: {
           env: {
             httpUrl,
@@ -280,7 +283,7 @@ describe('e2e cookies', () => {
           },
         },
         originalTitle: sharedNoBaseUrlSpecSnapshot,
-        spec: 'cookies_spec_no_baseurl.js',
+        spec: 'cookies_spec_no_baseurl.cy.js',
         snapshot: true,
       })
     })
@@ -339,20 +342,21 @@ describe('cross-origin cookies, set:cookies', () => {
         '*.bar.net': '127.0.0.1',
         '*.cypress.test': '127.0.0.1',
       },
+      e2e: {},
     },
 
   })
 
   // https://github.com/cypress-io/cypress/issues/6375
   it('set:cookies', {
+    browser: '!webkit', // TODO(webkit): fix+unskip (needs multidomain support)
     config: {
-      video: false,
       baseUrl: `http://127.0.0.3:${httpPort}`,
       env: {
         HTTP: httpPort,
         HTTPS: httpsPort,
       },
     },
-    spec: 'multi_cookies_spec.js',
+    spec: 'multi_cookies.cy.js',
   })
 })

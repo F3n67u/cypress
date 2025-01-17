@@ -3,6 +3,8 @@ import type httpProxy from 'http-proxy'
 import Debug from 'debug'
 import files from './files'
 import type { Cfg } from '../project-base'
+import type { FoundSpec } from '@packages/types'
+import type { RemoteStates } from '../remote_states'
 
 const debug = Debug('cypress:server:iframes')
 
@@ -11,8 +13,8 @@ interface IFramesController {
 }
 
 interface E2E extends IFramesController {
-  getRemoteState: () => any
-  getSpec: () => Cypress.Cypress['spec'] | null
+  remoteStates: RemoteStates
+  getSpec: () => FoundSpec | null
 }
 
 interface CT extends IFramesController {
@@ -20,9 +22,8 @@ interface CT extends IFramesController {
 }
 
 export const iframesController = {
-  e2e: ({ getSpec, getRemoteState, config }: E2E, req: Request, res: Response) => {
+  e2e: ({ getSpec, remoteStates, config }: E2E, req: Request, res: Response) => {
     const extraOptions = {
-      specFilter: getSpec()?.specFilter,
       specType: 'integration',
     }
 
@@ -31,18 +32,30 @@ export const iframesController = {
       extraOptions,
     })
 
-    files.handleIframe(req, res, config, getRemoteState, extraOptions)
+    // Chrome plans to make document.domain immutable in Chrome 109, with the default value
+    // of the Origin-Agent-Cluster header becoming 'true'. We explicitly disable this header
+    // so that we can continue to support tests that visit multiple subdomains in a single spec.
+    // https://github.com/cypress-io/cypress/issues/20147
+    res.setHeader('Origin-Agent-Cluster', '?0')
+
+    files.handleIframe(req, res, config, remoteStates, extraOptions)
   },
 
   component: ({ config, nodeProxy }: CT, req: Request, res: Response) => {
-    // always proxy to the index.html file
-    // attach header data for webservers
-    // to properly intercept and serve assets from the correct src root
-    // TODO: define a contract for dev-server plugins to configure this behavior
-    req.headers.__cypress_spec_path = req.params[0]
-    req.url = `${config.devServerPublicPathRoute}/index.html`
+    // requests to the index.html are from initializing the iframe. They include the specPath as query parameter
+    const specPath = req.query.specPath
 
-    // user the node proxy here instead of the network proxy
+    if (typeof specPath === 'string') {
+      // for those requests we need to provide the spec-path via this header
+      req.headers.__cypress_spec_path = encodeURI(specPath)
+      req.url = `${config.devServerPublicPathRoute}/index.html`
+      delete req.query.specPath
+    } else {
+      // all other requests should be forwarded to the devserver, preserving their relative paths so assets with relative urls work.
+      req.url = `${config.devServerPublicPathRoute}/${req.params[0]}`
+    }
+
+    // use the node proxy here instead of the network proxy
     // to avoid the user accidentally intercepting and modifying
     // our internal index.html handler
 

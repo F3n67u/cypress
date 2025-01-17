@@ -53,18 +53,6 @@ describe('cypress', function () {
         expect(args).to.deep.eq({ config: JSON.stringify(config) })
       })
     })
-
-    it('passes configFile: false', () => {
-      const opts = {
-        configFile: false,
-      }
-
-      return cypress.open(opts)
-      .then(getStartArgs)
-      .then((args) => {
-        expect(args).to.deep.eq(opts)
-      })
-    })
   })
 
   context('.run fails to write results file', function () {
@@ -112,10 +100,28 @@ describe('cypress', function () {
     }
 
     it('calls run#start, passing in options', () => {
-      return cypress.run({ spec: 'foo' })
+      return cypress.run({ spec: 'foo', autoCancelAfterFailures: 4 })
       .then(getStartArgs)
       .then((args) => {
         expect(args.spec).to.equal('foo')
+        expect(args.autoCancelAfterFailures).to.equal(4)
+        expect(args.runnerUi).to.be.undefined
+      })
+    })
+
+    it('calls run#start, passing in autoCancelAfterFailures false', () => {
+      return cypress.run({ autoCancelAfterFailures: false })
+      .then(getStartArgs)
+      .then((args) => {
+        expect(args.autoCancelAfterFailures).to.equal(false)
+      })
+    })
+
+    it('calls run#start, passing in autoCancelAfterFailures 0', () => {
+      return cypress.run({ autoCancelAfterFailures: 0 })
+      .then(getStartArgs)
+      .then((args) => {
+        expect(args.autoCancelAfterFailures).to.equal(0)
       })
     })
 
@@ -150,18 +156,6 @@ describe('cypress', function () {
 
     it('resolves with contents of tmp file', () => {
       return cypress.run().then(snapshot)
-    })
-
-    it('passes configFile: false', () => {
-      const opts = {
-        configFile: false,
-      }
-
-      return cypress.run(opts)
-      .then(getStartArgs)
-      .then((args) => {
-        expect(args).to.deep.eq(opts)
-      })
     })
 
     it('rejects if project is an empty string', () => {
@@ -223,30 +217,12 @@ describe('cypress', function () {
         })
       })
 
-      it('coerces --config-file false to boolean', async () => {
-        const args = 'cypress run --config-file false'.split(' ')
+      it('coerces --config-file cypress.config.js to string', async () => {
+        const args = 'cypress run --config-file cypress.config.js'.split(' ')
         const options = await cypress.cli.parseRunArguments(args)
 
         expect(options).to.deep.equal({
-          configFile: false,
-        })
-      })
-
-      it('coerces --config-file cypress.json to string', async () => {
-        const args = 'cypress run --config-file cypress.json'.split(' ')
-        const options = await cypress.cli.parseRunArguments(args)
-
-        expect(options).to.deep.equal({
-          configFile: 'cypress.json',
-        })
-      })
-
-      it('parses config file false', async () => {
-        const args = 'cypress run --config-file false'.split(' ')
-        const options = await cypress.cli.parseRunArguments(args)
-
-        expect(options).to.deep.equal({
-          configFile: false,
+          configFile: 'cypress.config.js',
         })
       })
 

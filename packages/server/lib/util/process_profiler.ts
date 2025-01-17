@@ -7,8 +7,8 @@ import { concatStream } from '@packages/network'
 const browsers = require('../browsers')
 const plugins = require('../plugins')
 
-type Group = 'browser' | 'cypress' | 'plugin' | 'desktop-gui' | 'ffmpeg' | 'electron-shared' | 'other'
-type Process = si.Systeminformation.ProcessesProcessData & {
+type Group = 'browser' | 'cypress' | 'launchpad' | 'plugin' | 'ffmpeg' | 'electron-shared' | 'other'
+export type Process = si.Systeminformation.ProcessesProcessData & {
   group?: Group
 }
 
@@ -37,7 +37,7 @@ const formatPidDisplay = (groupedProcesses) => {
   return display
 }
 
-export const _groupCyProcesses = ({ list }: si.Systeminformation.ProcessesData) => {
+export const groupCyProcesses = ({ list }: si.Systeminformation.ProcessesData) => {
   const cyProcesses: Process[] = []
   const thisProcess: Process = _.find(list, { pid: process.pid })!
 
@@ -51,9 +51,9 @@ export const _groupCyProcesses = ({ list }: si.Systeminformation.ProcessesData) 
   const isBrowserProcess = (proc: Process): boolean => {
     const instance = browsers.getBrowserInstance()
     // electron will return a list of pids, since it's not a hierarchy
-    const pid: number | number[] = instance && instance.pid
+    const pids: number[] = instance?.allPids ? instance.allPids : [instance?.pid]
 
-    return (Array.isArray(pid) ? (pid as number[]).includes(proc.pid) : proc.pid === pid)
+    return (pids.includes(proc.pid))
       || isParentProcessInGroup(proc, 'browser')
   }
 
@@ -62,18 +62,18 @@ export const _groupCyProcesses = ({ list }: si.Systeminformation.ProcessesData) 
       || isParentProcessInGroup(proc, 'plugin')
   }
 
-  // is this the renderer for the desktop-gui?
+  // is this the renderer for the launchpad?
   const isDesktopGuiProcess = (proc: Process): boolean => {
-    return proc.params.includes('--type=renderer')
+    return proc.params?.includes('--type=renderer')
       && !isBrowserProcess(proc)
   }
 
-  // these processes may be shared between the AUT and desktop-gui
+  // these processes may be shared between the AUT and launchpad.
   // rather than treat them as part of the `browser` in `run` mode and have
   // their usage in `open` mode be ambiguous, just put them in their own group
   const isElectronSharedProcess = (proc: Process): boolean => {
     const isType = (type) => {
-      return proc.params.includes(`--type=${type}`)
+      return proc.params?.includes(`--type=${type}`)
     }
 
     return isType('broker')
@@ -101,7 +101,7 @@ export const _groupCyProcesses = ({ list }: si.Systeminformation.ProcessesData) 
     }
 
     if (isDesktopGuiProcess(proc)) {
-      return 'desktop-gui'
+      return 'launchpad'
     }
 
     if (isFfmpegProcess(proc)) {
@@ -231,7 +231,7 @@ export const _printGroupedProcesses = (groupTotals) => {
 
 function _checkProcesses () {
   return si.processes()
-  .then(_groupCyProcesses)
+  .then(groupCyProcesses)
   .then(_renameBrowserGroup)
   .then(_aggregateGroups)
   .then(_printGroupedProcesses)
@@ -257,7 +257,7 @@ export function start () {
     return
   }
 
-  _checkProcesses()
+  _checkProcesses().catch(() => {})
 
   started = true
 }

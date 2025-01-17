@@ -1,6 +1,7 @@
+/* eslint-disable no-console */
 require('../spec_helper')
 
-const capture = require(`${root}lib/capture`)
+const capture = require(`../../lib/capture`)
 
 describe('lib/capture', () => {
   afterEach(() => {

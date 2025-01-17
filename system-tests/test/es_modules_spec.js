@@ -5,6 +5,7 @@ describe('e2e es modules', () => {
 
   it('passes', function () {
     return systemTests.exec(this, {
+      project: 'coffee-react-interop',
       spec: 'es_modules_in_coffee_spec.coffee',
       snapshot: true,
       noTypeScript: true,
@@ -13,7 +14,7 @@ describe('e2e es modules', () => {
 
   it('fails', function () {
     return systemTests.exec(this, {
-      spec: 'es_module_import_failing_spec.js',
+      spec: 'es_module_import_failing.cy.js',
       snapshot: true,
       expectedExitCode: 1,
       noTypeScript: true,

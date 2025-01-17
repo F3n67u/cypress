@@ -18,9 +18,13 @@ Installing Cypress (version: 1.2.3)
 ✔  Unzipped Cypress
 ✔  Finished Installation   /cache/Cypress/1.2.3
 
-You can now open Cypress by running: node_modules/.bin/cypress open
+You can now open Cypress by running one of the following, depending on your package manager:
 
-https://on.cypress.io/installing-cypress
+- npx cypress open
+- yarn cypress open
+- pnpm cypress open
+
+https://on.cypress.io/opening-the-app
 
 
 `
@@ -48,9 +52,13 @@ Installing Cypress (version: 1.2.3)
 ✔  Unzipped Cypress
 ✔  Finished Installation   /cache/Cypress/1.2.3
 
-You can now open Cypress by running: node_modules/.bin/cypress open
+You can now open Cypress by running one of the following, depending on your package manager:
 
-https://on.cypress.io/installing-cypress
+- npx cypress open
+- yarn cypress open
+- pnpm cypress open
+
+https://on.cypress.io/opening-the-app
 
 
 `
@@ -78,9 +86,13 @@ Installing Cypress (version: 1.2.3)
 ✔  Unzipped Cypress
 ✔  Finished Installation   /cache/Cypress/1.2.3
 
-You can now open Cypress by running: node_modules/.bin/cypress open
+You can now open Cypress by running one of the following, depending on your package manager:
 
-https://on.cypress.io/installing-cypress
+- npx cypress open
+- yarn cypress open
+- pnpm cypress open
+
+https://on.cypress.io/opening-the-app
 
 
 `
@@ -94,9 +106,13 @@ Installing Cypress (version: 1.2.3)
 
 
 
-You can now open Cypress by running: node_modules/.bin/cypress open
+You can now open Cypress by running one of the following, depending on your package manager:
 
-https://on.cypress.io/installing-cypress
+- npx cypress open
+- yarn cypress open
+- pnpm cypress open
+
+https://on.cypress.io/opening-the-app
 
 
 `
@@ -121,9 +137,13 @@ Installing Cypress (version: 1.2.3)
 ✔  Unzipped Cypress
 ✔  Finished Installation   /cache/Cypress/1.2.3
 
-You can now open Cypress by running: node_modules/.bin/cypress open
+You can now open Cypress by running one of the following, depending on your package manager:
 
-https://on.cypress.io/installing-cypress
+- npx cypress open
+- yarn cypress open
+- pnpm cypress open
+
+https://on.cypress.io/opening-the-app
 
 
 `
@@ -187,9 +207,13 @@ Installing Cypress (version: 0.12.1)
 ✔  Unzipped Cypress
 ✔  Finished Installation   /cache/Cypress/1.2.3
 
-You can now open Cypress by running: node_modules/.bin/cypress open
+You can now open Cypress by running one of the following, depending on your package manager:
 
-https://on.cypress.io/installing-cypress
+- npx cypress open
+- yarn cypress open
+- pnpm cypress open
+
+https://on.cypress.io/opening-the-app
 
 
 `
@@ -255,5 +279,45 @@ https://on.cypress.io/guides/getting-started/installing-cypress#system-requireme
 ----------
 
 Platform: win32-ia32
+
+`
+
+exports['/lib/tasks/install .start non-stable builds logs a warning about installing a pre-release 1'] = `
+⚠ Warning: You are installing a pre-release build of Cypress.
+
+Bugs may be present which do not exist in production builds.
+
+This build was created from:
+  * Commit SHA: 3b7f0b5c59def1e9b5f385bd585c9b2836706c29
+  * Commit Branch: aBranchName
+  * Commit Timestamp: 1996-11-27Txx:xx:xx.000Z
+
+Installing Cypress (version: https://cdn.cypress.io/beta/binary/0.0.0-development/darwin-x64/aBranchName-3b7f0b5c59def1e9b5f385bd585c9b2836706c29/cypress.zip)
+
+
+⠋  Downloaded Cypress
+✔  Downloaded Cypress
+✔  Downloaded Cypress
+⠋  Unzipped Cypress
+✔  Downloaded Cypress
+✔  Unzipped Cypress
+✔  Downloaded Cypress
+✔  Unzipped Cypress
+⠋  Finished Installation   /cache/Cypress/1.2.3
+✔  Downloaded Cypress
+✔  Unzipped Cypress
+✔  Finished Installation   /cache/Cypress/1.2.3
+✔  Downloaded Cypress
+✔  Unzipped Cypress
+✔  Finished Installation   /cache/Cypress/1.2.3
+
+You can now open Cypress by running one of the following, depending on your package manager:
+
+- npx cypress open
+- yarn cypress open
+- pnpm cypress open
+
+https://on.cypress.io/opening-the-app
+
 
 `

@@ -6,18 +6,21 @@ const Jimp = require('jimp')
 const { Buffer } = require('buffer')
 const dataUriToBuffer = require('data-uri-to-buffer')
 const sizeOf = require('image-size')
-const Fixtures = require('@tooling/system-tests/lib/fixtures')
-const config = require(`${root}lib/config`)
-const screenshots = require(`${root}lib/screenshots`)
-const { fs } = require(`${root}lib/util/fs`)
-const plugins = require(`${root}lib/plugins`)
-const { Screenshot } = require(`${root}lib/automation/screenshot`)
+const Fixtures = require('@tooling/system-tests')
+const screenshots = require(`../../lib/screenshots`)
+const { fs } = require(`../../lib/util/fs`)
+const plugins = require(`../../lib/plugins`)
+const { Screenshot } = require(`../../lib/automation/screenshot`)
+const { getCtx } = require(`../../lib/makeDataContext`)
 
 const image = 'data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAoAAAAKCAYAAACNMs+9AAAAGXRFWHRTb2Z0d2FyZQBBZG9iZSBJbWFnZVJlYWR5ccllPAAAALlJREFUeNpi1F3xYAIDA4MBA35wgQWqyB5dRoaVmeHJ779wPhOM0aQtyBAoyglmOwmwM6z1lWY44CMDFgcBFmRTGp3EGGJe/WIQ5mZm4GRlBGJmhlm3PqGaeODpNzCtKsbGIARUCALvvv6FWw9XeOvrH4bbQNOQwfabnzHdGK3AwyAjyAqX2HPzC0Pn7Y9wPtyNIMGlD74wmAqwMZz+8AvFxzATVZAFQIqwABWQiWtgAY5uCnKAAwQYAPr8OZysiz4PAAAAAElFTkSuQmCC'
 const iso8601Regex = /^\d{4}\-\d{2}\-\d{2}T\d{2}\:\d{2}\:\d{2}\.?\d*Z?$/
 
+let ctx
+
 describe('lib/screenshots', () => {
-  beforeEach(function () {
+  beforeEach(async function () {
+    ctx = getCtx()
     // make each test timeout after only 1 sec
     // so that durations are handled correctly
     this.currentTest.timeout(1000)
@@ -27,6 +30,8 @@ describe('lib/screenshots', () => {
 
     this.appData = {
       capture: 'viewport',
+      appOnly: true,
+      hideRunnerUi: false,
       clip: { x: 0, y: 0, width: 10, height: 10 },
       viewport: { width: 40, height: 40 },
     }
@@ -56,7 +61,10 @@ describe('lib/screenshots', () => {
     Jimp.prototype.composite = sinon.stub()
     // Jimp.prototype.getBuffer = sinon.stub().resolves(@buffer)
 
-    return config.get(this.todosPath).then((config1) => {
+    await ctx.actions.project.setCurrentProjectAndTestingTypeForTestSetup(this.todosPath)
+
+    return ctx.lifecycleManager.getFullInitialConfig()
+    .then((config1) => {
       this.config = config1
     })
   })
@@ -140,6 +148,37 @@ describe('lib/screenshots', () => {
         expect(details.pixelRatio).to.equal(1)
 
         expect(details.takenAt).to.match(iso8601Regex)
+      })
+    })
+
+    describe('runner hidden', () => {
+      beforeEach(function () {
+        this.currentTest.timeout(5000)
+      })
+
+      it('crops if this is not an appOnly capture but the runner is hidden', function () {
+        this.appData.hideRunnerUi = true
+        this.appData.capture = 'runner'
+        this.appData.appOnly = false
+
+        this.passPixelTest()
+
+        return screenshots.capture(this.appData, this.automate)
+        .then(() => {
+          expect(this.jimpImage.crop).to.be.calledWith(0, 0, 10, 10)
+        })
+      })
+
+      it('retries until helper pixels are no longer present for runner capture with runner hidden', function () {
+        this.appData.hideRunnerUi = true
+        this.appData.capture = 'runner'
+        this.appData.appOnly = false
+
+        this.getPixelColor.withArgs(0, 0).onCall(1).returns('white')
+
+        return screenshots.capture(this.appData, this.automate).then(() => {
+          expect(this.automate).to.be.calledTwice
+        })
       })
     })
 
@@ -389,7 +428,7 @@ describe('lib/screenshots', () => {
         }
       })
 
-      it('stiches together 1x DPI images', function () {
+      it('stitches together 1x DPI images', function () {
         return screenshots
         .capture(this.data1, this.dataUri('DPI-1x/1.png'))
         .then((img1) => {
@@ -564,18 +603,6 @@ describe('lib/screenshots', () => {
     })
   })
 
-  context('.copy', () => {
-    it('doesnt yell over ENOENT errors', () => {
-      return screenshots.copy('/does/not/exist', '/foo/bar/baz')
-    })
-
-    it('copies src to des with {overwrite: true}', () => {
-      sinon.stub(fs, 'copyAsync').withArgs('foo', 'bar', { overwrite: true }).resolves()
-
-      return screenshots.copy('foo', 'bar')
-    })
-  })
-
   context('.getPath', () => {
     beforeEach(() => {
       sinon.stub(fs, 'outputFileAsync').resolves()
@@ -704,6 +731,8 @@ describe('lib/screenshots', () => {
         testId: 'r1',
         name: 'my-screenshot',
         capture: 'runner',
+        appOnly: false,
+        hideRunnerUi: false,
         clip: { x: 0, y: 0, width: 1000, height: 660 },
         viewport: { width: 1400, height: 700 },
         scaled: true,

@@ -4,20 +4,24 @@ import path from 'path'
 import _ from 'lodash'
 import del from 'del'
 import chalk from 'chalk'
-import electron from '@packages/electron'
+import electron from '../../packages/electron'
 import la from 'lazy-ass'
-
+import { promisify } from 'util'
+import glob from 'glob'
 import * as packages from './util/packages'
 import * as meta from './meta'
-import xvfb from '../../cli/lib/exec/xvfb'
-import smoke from './smoke'
 import { spawn, execSync } from 'child_process'
 import { transformRequires } from './util/transform-requires'
 import execa from 'execa'
 import { testStaticAssets } from './util/testStaticAssets'
 import performanceTracking from '../../system-tests/lib/performance'
+import * as electronBuilder from 'electron-builder'
+
+const globAsync = promisify(glob)
 
 const CY_ROOT_DIR = path.join(__dirname, '..', '..')
+
+const jsonRoot = fs.readJSONSync(path.join(CY_ROOT_DIR, 'package.json'))
 
 const log = function (msg) {
   const time = new Date()
@@ -33,14 +37,46 @@ interface BuildCypressAppOpts {
   keepBuild?: boolean
 }
 
+/**
+ * Windows has a max path length of 260 characters. To avoid running over this when unzipping the
+ * built binary, this function attempts to guard against excessively-long paths in the binary by
+ * assuming an install default cache location and checking if final paths exceed 260 characters.
+ */
+async function checkMaxPathLength () {
+  if (process.platform !== 'win32') return log('#checkMaxPathLength (skipping since not on Windows)')
+
+  // This is the Cypress cache dir path on a vanilla Windows Server VM. We can treat this as the typical case.
+  const typicalWin32PathPrefixLength = 'C:\\Users\\Administrator\\AppData\\Local\\Cypress\\Cache\\10.0.0\\resources\\app\\'.length
+  const maxRelPathLength = 260 - typicalWin32PathPrefixLength
+
+  log(`#checkMaxPathLength (max abs path length: ${maxRelPathLength})`)
+
+  const buildDir = meta.buildDir()
+  const allRelPaths = (await globAsync('**/*', { cwd: buildDir, absolute: true }))
+  .map((p) => p.slice(buildDir.length))
+
+  if (!allRelPaths.length) throw new Error('No binary paths found in checkMaxPathLength')
+
+  const violations = allRelPaths.filter((p) => p.length > maxRelPathLength)
+
+  if (violations.length) {
+    throw new Error([
+      `${violations.length} paths in the built binary were too long for Windows. Either hoist these files or remove them from the build.`,
+      ...violations.map((v) => ` - ${v}`),
+    ].join('\n'))
+  }
+
+  log(`All paths are short enough (${allRelPaths.length} checked)`)
+}
+
 // For debugging the flow without rebuilding each time
 
 export async function buildCypressApp (options: BuildCypressAppOpts) {
-  const { platform, version, skipSigning = false, keepBuild = false } = options
+  const { platform, version, keepBuild = false } = options
 
   log('#checkPlatform')
   if (platform !== os.platform()) {
-    throw new Error('Platform mismatch')
+    throw new Error(`Attempting to cross-build, which is not supported. Local platform: '${os.platform()}' --platform: '${platform}'`)
   }
 
   const DIST_DIR = meta.distDir()
@@ -59,7 +95,13 @@ export async function buildCypressApp (options: BuildCypressAppOpts) {
 
   if (!keepBuild) {
     log('#buildPackages')
-    await execa('yarn', ['lerna', 'run', 'build-prod', '--stream', '--ignore', 'cli'], {
+
+    await execa('yarn', ['lerna', 'run', 'build', '--concurrency', '4'], {
+      stdio: 'inherit',
+      cwd: CY_ROOT_DIR,
+    })
+
+    await execa('yarn', ['lerna', 'run', 'build-prod', '--concurrency', '4'], {
       stdio: 'inherit',
       cwd: CY_ROOT_DIR,
     })
@@ -68,9 +110,19 @@ export async function buildCypressApp (options: BuildCypressAppOpts) {
   // Copy Packages: We want to copy the package.json, files, and output
   log('#copyAllToDist')
   await packages.copyAllToDist(DIST_DIR)
-  fs.copySync(path.join(CY_ROOT_DIR, 'patches'), path.join(DIST_DIR, 'patches'))
 
-  const jsonRoot = fs.readJSONSync(path.join(CY_ROOT_DIR, 'package.json'))
+  fs.copySync(path.join(CY_ROOT_DIR, 'patches'), path.join(DIST_DIR, 'patches'), {
+    // in some cases the dependency tree for nested dependencies changes when running
+    // a `yarn install` vs a `yarn install --production`. This is the case for `whatwg-url@7`,
+    // which i as a dependency of `source-map`, which is a devDependency in @packages/driver.
+    // This package gets hoisted by lerna to the root monorepo directory, but when install
+    // is run with --production, the directory structure changes and `whatwg-url@5` is
+    // installed and hoisted, which causes problems with patch-package.
+
+    // since we are only installing production level dependencies in this case, we do not need to copy
+    // dev patches into the DIST_DIR as they will not be applied anyway, allowing us to work around this problem.
+    filter: (src, _) => !src.includes('.dev.patch'),
+  })
 
   const packageJsonContents = _.omit(jsonRoot, [
     'devDependencies',
@@ -82,6 +134,7 @@ export async function buildCypressApp (options: BuildCypressAppOpts) {
   fs.writeJsonSync(meta.distDir('package.json'), {
     ...packageJsonContents,
     scripts: {
+      // After the `yarn --production` install, we need to patch packages
       postinstall: 'patch-package',
     },
   }, { spaces: 2 })
@@ -101,6 +154,12 @@ export async function buildCypressApp (options: BuildCypressAppOpts) {
     stdio: 'inherit',
   })
 
+  log('#copying better-sqlite3')
+  fs.copySync(
+    path.join(CY_ROOT_DIR, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
+    path.join(DIST_DIR, 'node_modules', 'better-sqlite3', 'build', 'Release', 'better_sqlite3.node'),
+  )
+
   // TODO: Validate no-hoists / single copies of libs
 
   // Remove extra directories that are large/unneeded
@@ -109,11 +168,11 @@ export async function buildCypressApp (options: BuildCypressAppOpts) {
     meta.distDir('**', 'image-q', 'demo'),
     meta.distDir('**', 'gifwrap', 'test'),
     meta.distDir('**', 'pixelmatch', 'test'),
-    meta.distDir('**', '@jimp', 'tiff', 'test'),
     meta.distDir('**', '@cypress', 'icons', '**/*.{ai,eps}'),
     meta.distDir('**', 'esprima', 'test'),
     meta.distDir('**', 'bmp-js', 'test'),
     meta.distDir('**', 'exif-parser', 'test'),
+    meta.distDir('**', 'app-module-path', 'test'),
   ], { force: true })
 
   console.log('Deleted excess directories')
@@ -136,14 +195,16 @@ export async function buildCypressApp (options: BuildCypressAppOpts) {
 
   fs.writeFileSync(meta.distDir('index.js'), `\
 process.env.CYPRESS_INTERNAL_ENV = process.env.CYPRESS_INTERNAL_ENV || 'production'
-require('./packages/server')\
+require('./packages/server/index.js')
 `)
 
   // removeTypeScript
+  log('#remove typescript files and devDep patches')
   await del([
     // include ts files of packages
     meta.distDir('**', '*.ts'),
-
+    // remove dev dep patches
+    meta.distDir('**', '*.dev.patch'),
     // except those in node_modules
     `!${meta.distDir('**', 'node_modules', '**', '*.ts')}`,
   ], { force: true })
@@ -155,14 +216,17 @@ require('./packages/server')\
 
   // transformSymlinkRequires
   log('#transformSymlinkRequires')
-
   await transformRequires(meta.distDir())
 
-  log(`#testVersion ${meta.distDir()}`)
-  await testVersion(meta.distDir(), version)
+  log(`#testDistVersion ${meta.distDir()}`)
+  await testDistVersion(meta.distDir(), version)
 
   log('#testStaticAssets')
   await testStaticAssets(meta.distDir())
+}
+
+export async function packageElectronApp (options: BuildCypressAppOpts) {
+  const { platform, version, skipSigning = false } = options
 
   log('#removeCyAndBinFolders')
   await del([
@@ -187,6 +251,8 @@ require('./packages/server')\
   // to learn how to get the right Mac certificate for signing and notarizing
   // the built Test Runner application
 
+  const electronVersion = electron.getElectronVersion()
+
   const appFolder = meta.distDir()
   const outputFolder = meta.buildRootDir()
 
@@ -194,26 +260,29 @@ require('./packages/server')\
 
   console.log(`output folder: ${outputFolder}`)
 
-  const args = [
-    '--publish=never',
-    `--c.electronVersion=${electronVersion}`,
-    `--c.directories.app=${appFolder}`,
-    `--c.directories.output=${outputFolder}`,
-    `--c.icon=${iconFilename}`,
-    // for now we cannot pack source files in asar file
-    // because electron-builder does not copy nested folders
-    // from packages/*/node_modules
-    // see https://github.com/electron-userland/electron-builder/issues/3185
-    // so we will copy those folders later ourselves
-    '--c.asar=false',
-  ]
-
-  console.log('electron-builder arguments:')
-  console.log(args.join(' '))
+  // Update the root package.json with the next app version so that it is snapshot properly
+  fs.writeJSONSync(path.join(CY_ROOT_DIR, 'package.json'), {
+    ...jsonRoot,
+    version,
+  }, { spaces: 2 })
 
   try {
-    await execa('electron-builder', args, {
-      stdio: 'inherit',
+    await electronBuilder.build({
+      publish: 'never',
+      config: {
+        electronVersion,
+        directories: {
+          app: appFolder,
+          output: outputFolder,
+        },
+        icon: iconFilename,
+        // for now we cannot pack source files in asar file
+        // because electron-builder does not copy nested folders
+        // from packages/*/node_modules
+        // see https://github.com/electron-userland/electron-builder/issues/3185
+        // so we will copy those folders later ourselves
+        asar: false,
+      },
     })
   } catch (e) {
     if (!skipSigning) {
@@ -221,32 +290,17 @@ require('./packages/server')\
     }
   }
 
+  // Revert the root package.json so that subsequent steps will work properly
+  fs.writeJSONSync(path.join(CY_ROOT_DIR, 'package.json'), jsonRoot, { spaces: 2 })
+
+  await checkMaxPathLength()
+
   // lsDistFolder
   console.log('in build folder %s', meta.buildDir())
 
   const { stdout } = await execa('ls', ['-la', meta.buildDir()])
 
   console.log(stdout)
-
-  // testVersion(buildAppDir)
-  await testVersion(meta.buildAppDir(), version)
-
-  // runSmokeTests
-  let usingXvfb = xvfb.isNeeded()
-
-  try {
-    if (usingXvfb) {
-      await xvfb.start()
-    }
-
-    const executablePath = meta.buildAppExecutable()
-
-    await smoke.test(executablePath)
-  } finally {
-    if (usingXvfb) {
-      await xvfb.stop()
-    }
-  }
 
   // verifyAppCanOpen
   if (platform === 'darwin' && !skipSigning) {
@@ -318,22 +372,22 @@ function getIconFilename () {
   return iconFilename
 }
 
-async function testVersion (dir: string, version: string) {
+async function testDistVersion (distDir: string, version: string) {
   log('#testVersion')
 
   console.log('testing dist package version')
   console.log('by calling: node index.js --version')
-  console.log('in the folder %s', dir)
+  console.log('in the folder %s', distDir)
 
   const result = await execa('node', ['index.js', '--version'], {
-    cwd: dir,
+    cwd: distDir,
   })
 
   la(result.stdout, 'missing output when getting built version', result)
 
-  console.log('app in %s', dir)
+  console.log('app in %s', distDir)
   console.log('built app version', result.stdout)
-  la(result.stdout === version, 'different version reported',
+  la(result.stdout.trim() === version.trim(), 'different version reported',
     result.stdout, 'from input version to build', version)
 
   console.log('✅ using node --version works')

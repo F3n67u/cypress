@@ -8,7 +8,6 @@ const cp = require('child_process')
 const Promise = require('bluebird')
 const { stripIndent } = require('common-tags')
 
-const { mockSpawn } = require('spawn-mock')
 const mockfs = require('mock-fs')
 const mockedEnv = require('mocked-env')
 
@@ -21,6 +20,7 @@ const verify = require(`${lib}/tasks/verify`)
 const Stdout = require('../../support/stdout')
 const normalize = require('../../support/normalize')
 const snapshot = require('../../support/snapshot')
+const { mockSpawn } = require('../../support/spawn-mock')
 
 const packageVersion = '1.2.3'
 const cacheDir = '/cache/Cypress'
@@ -95,6 +95,16 @@ context('lib/tasks/verify', () => {
     const newVerifyInstance = require(`${lib}/tasks/verify`)
 
     expect(newVerifyInstance.VERIFY_TEST_RUNNER_TIMEOUT_MS).to.eql(DEFAULT_VERIFY_TIMEOUT)
+  })
+
+  it('returns early when `CYPRESS_SKIP_VERIFY` is set to true', () => {
+    process.env.CYPRESS_SKIP_VERIFY = 'true'
+    delete require.cache[require.resolve(`${lib}/tasks/verify`)]
+    const newVerifyInstance = require(`${lib}/tasks/verify`)
+
+    return newVerifyInstance.start().then((result) => {
+      expect(result).to.eq(undefined)
+    })
   })
 
   it('logs error and exits when no version of Cypress is installed', () => {
@@ -210,7 +220,7 @@ context('lib/tasks/verify', () => {
       packageVersion,
     })
 
-    sinon.stub(cp, 'spawn').callsFake(mockSpawn((cp) => {
+    sinon.stub(cp, 'spawn').withArgs('/cache/Cypress/1.2.3/Cypress.app/Contents/MacOS/Cypress').callsFake(mockSpawn((cp) => {
       cp.stderr.write('some stderr')
       cp.stdout.write('some stdout')
     }))
@@ -278,31 +288,40 @@ context('lib/tasks/verify', () => {
     })
   })
 
-  it('sets ELECTRON_ENABLE_LOGGING without mutating process.env', () => {
-    createfs({
-      alreadyVerified: false,
-      executable: mockfs.file({ mode: 0o777 }),
-      packageVersion,
+  describe('FORCE_COLOR', () => {
+    let previousForceColors
+
+    beforeEach(() => {
+      previousForceColors = process.env.FORCE_COLOR
+
+      process.env.FORCE_COLOR = true
     })
 
-    expect(process.env.ELECTRON_ENABLE_LOGGING).to.be.undefined
+    afterEach(() => {
+      process.env.FORCE_COLOR = previousForceColors
+    })
 
-    util.exec.resolves()
-    sinon.stub(util, 'stdoutLineMatches').returns(true)
-
-    return verify
-    .start()
-    .then(() => {
-      expect(process.env.ELECTRON_ENABLE_LOGGING).to.be.undefined
-
-      const stdioOptions = util.exec.firstCall.args[2]
-
-      expect(stdioOptions).to.include({
-        timeout: verify.VERIFY_TEST_RUNNER_TIMEOUT_MS,
+    // @see https://github.com/cypress-io/cypress/issues/28982
+    it('sets FORCE_COLOR to 0 when piping stdioOptions to to the smoke test to avoid ANSI in binary smoke test', () => {
+      createfs({
+        alreadyVerified: false,
+        executable: mockfs.file({ mode: 0o777 }),
+        packageVersion,
       })
 
-      expect(stdioOptions.env).to.include({
-        ELECTRON_ENABLE_LOGGING: true,
+      util.exec.resolves({
+        stdout: '222',
+        stderr: '',
+      })
+
+      return verify.start()
+      .then(() => {
+        expect(util.exec).to.be.calledWith(executablePath, ['--no-sandbox', '--smoke-test', '--ping=222'],
+          sinon.match({
+            env: {
+              FORCE_COLOR: 0,
+            },
+          }))
       })
     })
   })

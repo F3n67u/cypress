@@ -40,7 +40,7 @@ const onServer = function (app) {
 
   app.get('/cors', (req, res) => {
     res.send(`<script>
-      fetch('https://127.0.0.2:44665/cross_origin')
+      fetch('https://www.foo.com:44665/cross_origin')
       .then((res) => res.text())
       .then(text => {
         if (text.includes('cross origin')) document.write('success!')
@@ -63,13 +63,20 @@ describe('e2e web security', () => {
     settings: {
       hosts: {
         '*.foo.com': '127.0.0.1',
+        '*.bar.com': '127.0.0.1',
+        '*.foobar.com': '127.0.0.1',
       },
+      e2e: {},
     },
   })
 
   context('when enabled', () => {
     systemTests.it('fails', {
-      spec: 'web_security_spec.js',
+      browser: '!webkit', // TODO(webkit): fix+unskip
+      spec: 'web_security.cy.js',
+      config: {
+        pageLoadTimeout: 5000,
+      },
       snapshot: true,
       expectedExitCode: 4,
     })
@@ -77,7 +84,7 @@ describe('e2e web security', () => {
 
   context('when disabled', () => {
     systemTests.it('passes', {
-      spec: 'web_security_spec.js',
+      spec: 'web_security.cy.js',
       config: {
         chromeWebSecurity: false,
       },
@@ -88,14 +95,15 @@ describe('e2e web security', () => {
 
   context('firefox', () => {
     systemTests.it('displays warning when firefox and chromeWebSecurity:false', {
-      spec: 'simple_passing_spec.js',
+      spec: 'simple_passing.cy.js',
       snapshot: true,
+      // TODO(webkit): run this test in webkit
       browser: 'firefox',
       config: {
         chromeWebSecurity: false,
       },
       onStdout (stdout) {
-        expect(stdout).include('Your project has set the configuration option: `chromeWebSecurity: false`\n\nThis option will not have an effect in Firefox.')
+        expect(stdout).include('Your project has set the configuration option: `chromeWebSecurity` to `false`.\n\nThis option will not have an effect in Firefox.')
       },
     })
   })

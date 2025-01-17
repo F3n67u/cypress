@@ -1,0 +1,12 @@
+{
+  "extends": "../ts/tsconfig.json",
+  "include": [
+    "src",
+  ],
+  "compilerOptions": {
+    "allowJs": false,
+    "noImplicitAny": true,
+    "noImplicitReturns": false,
+    "noUncheckedIndexedAccess": true,
+  }
+}

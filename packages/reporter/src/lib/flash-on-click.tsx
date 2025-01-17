@@ -1,4 +1,4 @@
-import { action, observable } from 'mobx'
+import { action, observable, makeObservable } from 'mobx'
 import { observer } from 'mobx-react'
 import PropTypes from 'prop-types'
 import React, { Children, cloneElement, Component, MouseEvent, ReactElement, ReactNode } from 'react'
@@ -9,6 +9,7 @@ interface Props {
   message: string
   onClick: ((e: MouseEvent) => void)
   shouldShowMessage?: (() => boolean)
+  wrapperClassName?: string
 }
 
 @observer
@@ -17,6 +18,7 @@ class FlashOnClick extends Component<Props> {
     message: PropTypes.string.isRequired,
     onClick: PropTypes.func.isRequired,
     shouldShowMessage: PropTypes.func,
+    wrapperClassName: PropTypes.string,
   }
 
   static defaultProps = {
@@ -25,11 +27,22 @@ class FlashOnClick extends Component<Props> {
 
   @observable _show = false
 
+  constructor (props: Props) {
+    super(props)
+    makeObservable(this)
+  }
+
   render () {
     const child = Children.only<ReactNode>(this.props.children)
 
     return (
-      <Tooltip placement='top' title={this.props.message} visible={this._show} className='cy-tooltip'>
+      <Tooltip
+        placement='top'
+        title={this.props.message}
+        visible={this._show}
+        className='cy-tooltip'
+        wrapperClassName={this.props.wrapperClassName}
+      >
         {cloneElement(child as ReactElement, { onClick: this._onClick })}
       </Tooltip>
     )

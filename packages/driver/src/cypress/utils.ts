@@ -1,4 +1,3 @@
-// @ts-nocheck
 import _ from 'lodash'
 import capitalize from 'underscore.string/capitalize'
 import methods from 'methods'
@@ -8,10 +7,10 @@ import $ from 'jquery'
 import $dom from '../dom'
 import $jquery from '../dom/jquery'
 import { $Location } from './location'
+import $errUtils from './error_utils'
 
 const tagOpen = /\[([a-z\s='"-]+)\]/g
 const tagClosed = /\[\/([a-z]+)\]/g
-const quotesRe = /('|")/g
 
 const defaultOptions = {
   delay: 10,
@@ -46,12 +45,18 @@ const USER_FRIENDLY_TYPE_DETECTORS = _.map([
   [_.stubTrue, 'unknown'],
 ], ([fn, type]) => {
   return [fn, _.constant(type)]
-})
+}) as [(val: any) => boolean, (val: Function) => Function][]
 
 export default {
   warning (msg) {
     // eslint-disable-next-line no-console
     return console.warn(`Cypress Warning: ${msg}`)
+  },
+
+  throwErrByPath (errPath: string, args: any) {
+    return $errUtils.throwErrByPath(errPath, {
+      args,
+    })
   },
 
   log (...msgs) {
@@ -71,6 +76,18 @@ export default {
     }
   },
 
+  monkeypatchBeforeAsync (origFn, fn) {
+    return async function () {
+      const newArgs = await fn.apply(this, arguments)
+
+      if (newArgs !== undefined) {
+        return origFn.apply(this, newArgs)
+      }
+
+      return origFn.apply(this, arguments)
+    }
+  },
+
   unwrapFirst (val) {
     // this method returns the first item in an array
     // and if its still a jquery object, then we return
@@ -78,7 +95,7 @@ export default {
     const item = [].concat(val)[0]
 
     if ($jquery.isJquery(item)) {
-      return item.first()
+      return (item as JQuery<any>).first()
     }
 
     return item
@@ -98,7 +115,7 @@ export default {
     throw new Error(`The switch/case value: '${value}' did not match any cases: ${keys.join(', ')}.`)
   },
 
-  reduceProps (obj, props: string[] = []) {
+  reduceProps (obj, props: readonly string[] = []) {
     if (!obj) {
       return null
     }
@@ -154,7 +171,7 @@ export default {
       memo.push(`${`${key}`.toLowerCase()}: ${this.stringifyActual(value)}`)
 
       return memo
-    }, [])
+    }, [] as string[])
 
     return `{${str.join(', ')}}`
   },
@@ -185,7 +202,7 @@ export default {
     if (_.isObject(value)) {
       // Cannot use $dom.isJquery here because it causes infinite recursion.
       if (value instanceof $) {
-        return `jQuery{${value.length}}`
+        return `jQuery{${(value as JQueryStatic).length}}`
       }
 
       const len = _.keys(value).length
@@ -224,6 +241,7 @@ export default {
     return _
     .chain(values)
     .map(_.bind(this.stringifyActual, this))
+    // @ts-expect-error
     .without(undefined)
     .join(', ')
     .value()
@@ -266,12 +284,6 @@ export default {
     } catch (e) {
       return false
     }
-  },
-
-  escapeQuotes (text) {
-    // convert to str and escape any single
-    // or double quotes
-    return (`${text}`).replace(quotesRe, '\\$1')
   },
 
   normalizeNumber (num) {
@@ -320,8 +332,8 @@ export default {
     return Math.sqrt((deltaX * deltaX) + (deltaY * deltaY))
   },
 
-  getTestFromRunnable (r) {
-    return r.ctx.currentTest || r
+  getTestFromRunnable (r: Mocha.Runnable) {
+    return r.ctx?.currentTest || r
   },
 
   memoize (func, cacheInstance = new Map()) {
@@ -396,7 +408,7 @@ export default {
   */
   encodeBase64Unicode (str) {
     return btoa(encodeURIComponent(str).replace(/%([0-9A-F]{2})/g, (match, p1) => {
-      return String.fromCharCode(`0x${p1}`)
+      return String.fromCharCode(Number(`0x${p1}`))
     }))
   },
 
@@ -405,6 +417,7 @@ export default {
   },
 
   isPromiseLike (ret) {
-    return ret && _.isFunction(ret.then)
+    // @ts-ignore
+    return ret && _.isObject(ret) && 'then' in ret && _.isFunction(ret.then) && 'catch' in ret && _.isFunction(ret.catch)
   },
 }

@@ -3,19 +3,24 @@ import { v4 as uuidv4 } from 'uuid'
 import { Cookies } from './cookies'
 import { Screenshot } from './screenshot'
 import type { BrowserPreRequest } from '@packages/proxy'
+import type { AutomationMiddleware, OnRequestEvent, OnServiceWorkerClientSideRegistrationUpdated, OnServiceWorkerRegistrationUpdated, OnServiceWorkerVersionUpdated } from '@packages/types'
+import { cookieJar } from '../util/cookies'
+import type { ServiceWorkerEventHandler } from '@packages/proxy/lib/http/util/service-worker-manager'
 
-type NullableMiddlewareHook = (() => void) | null
+export type OnBrowserPreRequest = (browserPreRequest: BrowserPreRequest) => Promise<void>
 
-export type OnBrowserPreRequest = (browserPreRequest: BrowserPreRequest) => void
-
-export type OnRequestEvent = (eventName: string, data: any) => void
-
-export interface AutomationMiddleware {
-  onPush?: NullableMiddlewareHook
-  onBeforeRequest?: OnRequestEvent | null
-  onRequest?: OnRequestEvent | null
-  onResponse?: NullableMiddlewareHook
-  onAfterResponse?: NullableMiddlewareHook
+export type AutomationOptions = {
+  cyNamespace?: string
+  cookieNamespace?: string
+  screenshotsFolder?: string | false
+  onBrowserPreRequest?: OnBrowserPreRequest
+  onRequestEvent?: OnRequestEvent
+  onRemoveBrowserPreRequest?: (requestId: string) => void
+  onDownloadLinkClicked?: (downloadUrl: string) => void
+  onServiceWorkerRegistrationUpdated?: OnServiceWorkerRegistrationUpdated
+  onServiceWorkerVersionUpdated?: OnServiceWorkerVersionUpdated
+  onServiceWorkerClientSideRegistrationUpdated?: OnServiceWorkerClientSideRegistrationUpdated
+  onServiceWorkerClientEvent: ServiceWorkerEventHandler
 }
 
 export class Automation {
@@ -23,15 +28,32 @@ export class Automation {
   private middleware: AutomationMiddleware
   private cookies: Cookies
   private screenshot: { capture: (data: any, automate: any) => any }
+  public onBrowserPreRequest: OnBrowserPreRequest | undefined
+  public onRequestEvent: OnRequestEvent | undefined
+  public onRemoveBrowserPreRequest: ((requestId: string) => void) | undefined
+  public onDownloadLinkClicked: ((downloadUrl: string) => void) | undefined
+  public onServiceWorkerRegistrationUpdated: OnServiceWorkerRegistrationUpdated | undefined
+  public onServiceWorkerVersionUpdated: OnServiceWorkerVersionUpdated | undefined
+  public onServiceWorkerClientSideRegistrationUpdated: OnServiceWorkerClientSideRegistrationUpdated | undefined
+  public onServiceWorkerClientEvent: ServiceWorkerEventHandler
 
-  constructor (cyNamespace?: string, cookieNamespace?: string, screenshotsFolder?: string | false, public onBrowserPreRequest?: OnBrowserPreRequest, public onRequestEvent?: OnRequestEvent) {
+  constructor (options: AutomationOptions) {
+    this.onBrowserPreRequest = options.onBrowserPreRequest
+    this.onRequestEvent = options.onRequestEvent
+    this.onRemoveBrowserPreRequest = options.onRemoveBrowserPreRequest
+    this.onDownloadLinkClicked = options.onDownloadLinkClicked
+    this.onServiceWorkerRegistrationUpdated = options.onServiceWorkerRegistrationUpdated
+    this.onServiceWorkerVersionUpdated = options.onServiceWorkerVersionUpdated
+    this.onServiceWorkerClientSideRegistrationUpdated = options.onServiceWorkerClientSideRegistrationUpdated
+    this.onServiceWorkerClientEvent = options.onServiceWorkerClientEvent
+
     this.requests = {}
 
     // set the middleware
     this.middleware = this.initializeMiddleware()
 
-    this.cookies = new Cookies(cyNamespace, cookieNamespace)
-    this.screenshot = Screenshot(screenshotsFolder)
+    this.cookies = new Cookies(options.cyNamespace, options.cookieNamespace)
+    this.screenshot = Screenshot(options.screenshotsFolder)
   }
 
   initializeMiddleware = (): AutomationMiddleware => {
@@ -48,8 +70,8 @@ export class Automation {
     this.middleware = this.initializeMiddleware()
   }
 
-  automationValve (message, fn) {
-    return (msg, data) => {
+  automationValve (message: string, fn: (...args: any) => any) {
+    return (msg: string, data: any) => {
       // enable us to omit message
       // argument
       if (!data) {
@@ -70,7 +92,7 @@ export class Automation {
     }
   }
 
-  requestAutomationResponse (message, data, fn) {
+  requestAutomationResponse (message: string, data: any, fn: (...args: any) => any) {
     return new Bluebird((resolve, reject) => {
       const id = uuidv4()
 
@@ -107,7 +129,7 @@ export class Automation {
     })
   }
 
-  normalize (message, data, automate?) {
+  normalize (message: string, data: any, automate?) {
     return Bluebird.try(() => {
       switch (message) {
         case 'take:screenshot':
@@ -120,13 +142,24 @@ export class Automation {
           return this.cookies.setCookie(data, automate)
         case 'set:cookies':
           return this.cookies.setCookies(data, automate)
+        case 'add:cookies':
+          return this.cookies.addCookies(data, automate)
         case 'clear:cookies':
-          return this.cookies.clearCookies(data, automate)
+          return Bluebird.all([
+            this.cookies.clearCookies(data, automate),
+            cookieJar.removeAllCookies(),
+          ])
+          .spread((automationResult) => automationResult)
         case 'clear:cookie':
-          return this.cookies.clearCookie(data, automate)
+          return Bluebird.all([
+            this.cookies.clearCookie(data, automate),
+            cookieJar.removeCookie(data),
+          ])
+          .spread((automationResult) => automationResult)
         case 'change:cookie':
           return this.cookies.changeCookie(data)
         case 'create:download':
+        case 'canceled:download':
         case 'complete:download':
           return data
         default:
@@ -184,7 +217,7 @@ export class Automation {
     }
   }
 
-  get = (fn: keyof AutomationMiddleware) => {
+  get = <K extends keyof AutomationMiddleware>(fn: K): AutomationMiddleware[K] => {
     return this.middleware[fn]
   }
 }

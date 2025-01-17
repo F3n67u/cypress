@@ -1,3 +1,155 @@
+# [@cypress/react-v9.0.0](https://github.com/cypress-io/cypress/compare/@cypress/react-v8.0.2...@cypress/react-v9.0.0) (2025-01-08)
+
+
+### breaking
+
+* release version 9.0.0 of @cypress/react. ([b383b4f](https://github.com/cypress-io/cypress/commit/b383b4fb9adf676d96c6658230d68425fe9023cb))
+
+
+### Features
+
+* support react 19 for component testing with cypress/react [run ci] ([#30651](https://github.com/cypress-io/cypress/issues/30651)) ([94d360e](https://github.com/cypress-io/cypress/commit/94d360e8ae4dbffee03121c1d74c8c577ebaa1e2))
+
+
+### BREAKING CHANGES
+
+* Cypress 14 drops support for React 16-17. React 18 and up is supported.
+
+# [@cypress/react-v8.0.2](https://github.com/cypress-io/cypress/compare/@cypress/react-v8.0.1...@cypress/react-v8.0.2) (2024-06-07)
+
+
+### Bug Fixes
+
+* update cypress to Typescript 5 ([#29568](https://github.com/cypress-io/cypress/issues/29568)) ([f3b6766](https://github.com/cypress-io/cypress/commit/f3b67666a5db0438594339c379cf27e1fd1e4abc))
+
+# [@cypress/react-v8.0.1](https://github.com/cypress-io/cypress/compare/@cypress/react-v8.0.0...@cypress/react-v8.0.1) (2024-05-06)
+
+# [@cypress/react-v8.0.0](https://github.com/cypress-io/cypress/compare/@cypress/react-v7.0.3...@cypress/react-v8.0.0) (2023-08-29)
+
+
+* `@cypress/react-v8.0.0` was inadvertently released and published. There are no breaking changes or any other changes in this release.
+
+# [@cypress/react-v7.0.3](https://github.com/cypress-io/cypress/compare/@cypress/react-v7.0.2...@cypress/react-v7.0.3) (2023-03-20)
+
+
+### Bug Fixes
+
+* **vite-dev-server:** do not use incremental esbuild option with Vite v4.2.0+ ([#26139](https://github.com/cypress-io/cypress/issues/26139)) ([3a2b2d3](https://github.com/cypress-io/cypress/commit/3a2b2d3323310c68f72f6e42203f5e93afc1cde5))
+
+# [@cypress/react-v7.0.2](https://github.com/cypress-io/cypress/compare/@cypress/react-v7.0.1...@cypress/react-v7.0.2) (2022-12-02)
+
+
+### Bug Fixes
+
+* remove cypress.server.defaults, cy.server and cy.route ([#24411](https://github.com/cypress-io/cypress/issues/24411)) ([2f18a8c](https://github.com/cypress-io/cypress/commit/2f18a8cbd2d1a90fe1f77a29cdc89571bf54109e))
+
+# [@cypress/react-v7.0.1](https://github.com/cypress-io/cypress/compare/@cypress/react-v7.0.0...@cypress/react-v7.0.1) (2022-11-08)
+
+
+### Bug Fixes
+
+* make component derived info not throw ([#24571](https://github.com/cypress-io/cypress/issues/24571)) ([838dd4f](https://github.com/cypress-io/cypress/commit/838dd4fa2e0ec56633d0af2faf10a47d190b5594))
+
+# [@cypress/react-v7.0.0](https://github.com/cypress-io/cypress/compare/@cypress/react-v6.2.1...@cypress/react-v7.0.0) (2022-11-07)
+
+
+### Bug Fixes
+
+* remove last mounted component upon subsequent mount calls ([#24470](https://github.com/cypress-io/cypress/issues/24470)) ([f39eb1c](https://github.com/cypress-io/cypress/commit/f39eb1c19e0923bda7ae263168fc6448da942d54))
+* remove some CT functions and props ([#24419](https://github.com/cypress-io/cypress/issues/24419)) ([294985f](https://github.com/cypress-io/cypress/commit/294985f8b3e0fa00ed66d25f88c8814603766074))
+
+
+### BREAKING CHANGES
+
+* remove last mounted component upon subsequent mount calls of mount
+
+# [@cypress/react-v6.2.1](https://github.com/cypress-io/cypress/compare/@cypress/react-v6.2.0...@cypress/react-v6.2.1) (2022-11-01)
+
+
+### Bug Fixes
+
+* Hovering over mount in command log does not show component in AUT ([#24346](https://github.com/cypress-io/cypress/issues/24346)) ([355d210](https://github.com/cypress-io/cypress/commit/355d2101d38ea4d1e93b9c571cf77babab2bbbfc))
+
+# [@cypress/react-v6.2.0](https://github.com/cypress-io/cypress/compare/@cypress/react-v6.1.1...@cypress/react-v6.2.0) (2022-08-30)
+
+
+### Features
+
+* adding svelte component testing support ([#23553](https://github.com/cypress-io/cypress/issues/23553)) ([f6eaad4](https://github.com/cypress-io/cypress/commit/f6eaad40e1836fa9db87c60defa5ae6f390c8fd8))
+
+# [@cypress/react-v6.1.1](https://github.com/cypress-io/cypress/compare/@cypress/react-v6.1.0...@cypress/react-v6.1.1) (2022-08-15)
+
+
+### Bug Fixes
+
+* **react18:** unmount component with react18 API ([#23204](https://github.com/cypress-io/cypress/issues/23204)) ([eab950b](https://github.com/cypress-io/cypress/commit/eab950bec013f9caf5836e3fa58670fde25e2684))
+
+# [@cypress/react-v6.1.0](https://github.com/cypress-io/cypress/compare/@cypress/react-v6.0.0...@cypress/react-v6.1.0) (2022-08-11)
+
+
+### Bug Fixes
+
+* remove CT side effects from mount when e2e testing ([#22633](https://github.com/cypress-io/cypress/issues/22633)) ([a9476ec](https://github.com/cypress-io/cypress/commit/a9476ecb3d43f628b689e060294a1952937cb1a7))
+
+
+### Features
+
+* React 18 support ([#22876](https://github.com/cypress-io/cypress/issues/22876)) ([f0d3a48](https://github.com/cypress-io/cypress/commit/f0d3a4867907bf6e60468510daa883ccc8dcfb63))
+* update to Vite 3 ([#22915](https://github.com/cypress-io/cypress/issues/22915)) ([6adba46](https://github.com/cypress-io/cypress/commit/6adba462ea6b76dbb96f99aa3837492ca1f17ed3))
+
+# [@cypress/react-v6.0.0](https://github.com/cypress-io/cypress/compare/@cypress/react-v5.12.5...@cypress/react-v6.0.0) (2022-06-13)
+
+
+### Bug Fixes
+
+* **react:** link to rerender example ([#19020](https://github.com/cypress-io/cypress/issues/19020)) ([552d3a1](https://github.com/cypress-io/cypress/commit/552d3a1c0073dae0bd1da0fc9fa8d140ec4f38dc))
+
+
+### chore
+
+* prep npm packages for use with Cypress v10 ([b924d08](https://github.com/cypress-io/cypress/commit/b924d086ee2e2ccc93303731e001b2c9e9d0af17))
+
+
+### Features
+
+* embedding mount into the cypress binary (real dependency) ([#20930](https://github.com/cypress-io/cypress/issues/20930)) ([3fe5f50](https://github.com/cypress-io/cypress/commit/3fe5f50e7832a4bfb20df8e71648434eb7f263d5))
+* remove testFiles reference ([#20565](https://github.com/cypress-io/cypress/issues/20565)) ([5670344](https://github.com/cypress-io/cypress/commit/567034459089d9d53dfab5556cb9369fb335c3db))
+* swap the #__cy_root id selector to become data-cy-root for component mounting ([#20951](https://github.com/cypress-io/cypress/issues/20951)) ([0e7b555](https://github.com/cypress-io/cypress/commit/0e7b555f93fb403f431c5de4a07ae7ad6ac89ba2))
+* update on-links ([#19235](https://github.com/cypress-io/cypress/issues/19235)) ([cc2d734](https://github.com/cypress-io/cypress/commit/cc2d7348185e2a090c60d92d9319ab460d8c7827))
+
+
+### BREAKING CHANGES
+
+* new version of packages for Cypress v10
+
+# [@cypress/react-v5.12.5](https://github.com/cypress-io/cypress/compare/@cypress/react-v5.12.4...@cypress/react-v5.12.5) (2022-05-17)
+
+
+### Bug Fixes
+
+* add support for Next.js v12.1.6 ([#21516](https://github.com/cypress-io/cypress/issues/21516)) ([72ed33c](https://github.com/cypress-io/cypress/commit/72ed33c4eaa4823366fb47f212f0c5e609fa2cf0))
+
+# [@cypress/react-v5.12.4](https://github.com/cypress-io/cypress/compare/@cypress/react-v5.12.3...@cypress/react-v5.12.4) (2022-03-03)
+
+
+### Bug Fixes
+
+* avoid nextjs unsafeCache and watchOptions ([#20440](https://github.com/cypress-io/cypress/issues/20440)) ([9f60901](https://github.com/cypress-io/cypress/commit/9f6090170b0675d25b26b98cd0f987a5e395ab78))
+
+# [@cypress/react-v5.12.3](https://github.com/cypress-io/cypress/compare/@cypress/react-v5.12.2...@cypress/react-v5.12.3) (2022-02-10)
+
+
+### Bug Fixes
+
+* set correct default when using react-scripts plugin ([#20141](https://github.com/cypress-io/cypress/issues/20141)) ([9b967e0](https://github.com/cypress-io/cypress/commit/9b967e06f5df1e8ae2c5b13d5c7f7170b069f5bc))
+
+# [@cypress/react-v5.12.2](https://github.com/cypress-io/cypress/compare/@cypress/react-v5.12.1...@cypress/react-v5.12.2) (2022-02-08)
+
+
+### Bug Fixes
+
+* remove nullish coalescing in js files to support node 12 ([#20094](https://github.com/cypress-io/cypress/issues/20094)) ([dd11945](https://github.com/cypress-io/cypress/commit/dd11945f5330c14e1540133187415f341794d6f6))
+
 # [@cypress/react-v5.12.1](https://github.com/cypress-io/cypress/compare/@cypress/react-v5.12.0...@cypress/react-v5.12.1) (2022-01-10)
 
 
@@ -268,7 +420,7 @@
 
 * Added the need to install a preprocessor or a dev-server plugin
 * Removed the pre-instalation of test coverage 
-  * Install it manually by following [the documentation](https://docs.cypress.io/guides/tooling/code-coverage.html#Introduction)
+  * Install it manually by following [the documentation](https://on.cypress.io/code-coverage-introduction)
 * removed the pre-installation of `cypress-react-selector`
   * If you use `cy.react()` in your tests, the command will not work anymore. [Install it back in your support file](https://www.npmjs.com/package/cypress-react-selector) 
 

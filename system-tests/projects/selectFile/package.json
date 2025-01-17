@@ -1,9 +1,9 @@
 {
-  "name": "@test-project/selectFile",
+  "name": "selectFile",
   "version": "0.0.0-test",
   "devDependencies": {
-    "@uppy/core": "^2.1.2",
-    "@uppy/dashboard": "2.1.1",
-    "dropzone": "6.0.0-beta.1"
+    "@uppy/core": "^4.2.3",
+    "@uppy/dashboard": "4.1.2",
+    "dropzone": "6.0.0-beta.2"
   }
 }

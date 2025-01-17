@@ -1,25 +1,23 @@
-import { log } from '../log'
+import Debug from 'debug'
 import { notInstalledErr } from '../errors'
 import { utils } from '../utils'
 import * as fs from 'fs-extra'
-import * as os from 'os'
 import * as path from 'path'
 import * as plist from 'plist'
-import * as semver from 'semver'
-import type { FoundBrowser } from '../types'
-import * as findSystemNode from '@packages/server/lib/util/find_system_node'
+
+const debugVerbose = Debug('cypress-verbose:launcher:darwin:util')
 
 /** parses Info.plist file from given application and returns a property */
 export function parsePlist (p: string, property: string): Promise<string> {
   const pl = path.join(p, 'Contents', 'Info.plist')
 
-  log('reading property file "%s"', pl)
+  debugVerbose('reading property file "%s"', pl)
 
   const failed = (e: Error) => {
     const msg = `Info.plist not found: ${pl}
     ${e.message}`
 
-    log('could not read Info.plist %o', { pl, e })
+    debugVerbose('could not read Info.plist %o', { pl, e })
     throw notInstalledErr('', msg)
   }
 
@@ -35,16 +33,16 @@ export function parsePlist (p: string, property: string): Promise<string> {
 export function mdfind (id: string): Promise<string> {
   const cmd = `mdfind 'kMDItemCFBundleIdentifier=="${id}"' | head -1`
 
-  log('looking for bundle id %s using command: %s', id, cmd)
+  debugVerbose('looking for bundle id %s using command: %s', id, cmd)
 
   const logFound = (str: string) => {
-    log('found %s at %s', id, str)
+    debugVerbose('found %s at %s', id, str)
 
     return str
   }
 
   const failedToFind = () => {
-    log('could not find %s', id)
+    debugVerbose('could not find %s', id)
     throw notInstalledErr(id)
   }
 
@@ -66,9 +64,13 @@ export type AppInfo = {
 }
 
 export type FindAppParams = {
+  // The name of the application (e.g. 'Google Chrome.app')
   appName: string
+  // The path to the executable within the application (e.g. 'Contents/MacOS/Google Chrome')
   executable: string
-  appId: string
+  // The CFBundleIdentifier in the Info.plist (e.g. 'com.google.Chrome')
+  bundleId: string
+  // The key from the Info.plist to find the version (e.g. 'KSVersion')
   versionProperty: string
 }
 
@@ -77,12 +79,12 @@ function formApplicationPath (appName: string) {
 }
 
 /** finds an application and its version */
-export function findApp ({ appName, executable, appId, versionProperty }: FindAppParams): Promise<AppInfo> {
-  log('looking for app %s id %s', executable, appId)
+export function findApp ({ appName, executable, bundleId, versionProperty }: FindAppParams): Promise<AppInfo> {
+  debugVerbose('looking for app %s bundle id %s', executable, bundleId)
 
   const findVersion = (foundPath: string) => {
     return parsePlist(foundPath, versionProperty).then((version) => {
-      log('got plist: %o', { foundPath, version })
+      debugVerbose('got plist: %o', { foundPath, version })
 
       return {
         path: path.join(foundPath, executable),
@@ -92,33 +94,16 @@ export function findApp ({ appName, executable, appId, versionProperty }: FindAp
   }
 
   const tryMdFind = () => {
-    return mdfind(appId).then(findVersion)
+    return mdfind(bundleId).then(findVersion)
   }
 
   const tryFullApplicationFind = () => {
     const applicationPath = formApplicationPath(appName)
 
-    log('looking for application %s', applicationPath)
+    debugVerbose('looking for application %s', applicationPath)
 
     return findVersion(applicationPath)
   }
 
   return tryMdFind().catch(tryFullApplicationFind)
-}
-
-export function needsDarwinWorkaround (): boolean {
-  return os.platform() === 'darwin' && semver.gte(os.release(), '20.0.0')
-}
-
-export async function darwinDetectionWorkaround (): Promise<FoundBrowser[]> {
-  const nodePath = await findSystemNode.findNodeInFullPath()
-  let args = ['./detection-workaround.js']
-
-  if (process.env.CYPRESS_INTERNAL_ENV === 'development') {
-    args = ['-r', '@packages/ts/register.js', './detection-workaround.ts']
-  }
-
-  const { stdout } = await utils.execa(nodePath, args, { cwd: __dirname })
-
-  return JSON.parse(stdout)
 }

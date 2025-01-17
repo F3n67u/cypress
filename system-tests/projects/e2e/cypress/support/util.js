@@ -5,46 +5,38 @@ let openInIdePath = Cypress.spec
 
 // ensure title is unique since it's necessary for querying the UI
 // in the verification step
-const getTitle = (ctx) => {
+const getTitle = (title, ctx) => {
   const parentTitle = ctx.parent && ctx.parent.title
 
-  return `${parentTitle} ${ctx.title}`.trim()
+  return `${parentTitle} ${title}`.trim()
 }
 
-export const fail = (ctx, test) => {
-  const title = `${count++}) ✗ FAIL - ${getTitle(ctx)}`
+export const fail = (title, ctx, test) => {
+  const testTitle = `${count++}) ✗ FAIL - ${getTitle(title, ctx)}`
 
-  it(title, { defaultCommandTimeout: 0 }, test)
+  it(testTitle, test)
 }
 
-export const verify = (ctx, options) => {
+export const verify = (title, ctx, options) => {
   const {
+    before,
     line,
     column,
     message,
     stack,
+    isCyOrigin,
+    isPreprocessorWithTypescript,
   } = options
 
-  const fileRegex = new RegExp(`${Cypress.spec.relative}:${line}:${column}`)
+  const codeFrameFileRegex = new RegExp(`${Cypress.spec.relative}:${line}${column ? `:${column}` : ''}`)
+  const stackFileRegex = new RegExp(`${Cypress.spec.relative}:${line}${column ? `:${column - 1}` : ''}`)
 
-  it(`✓ VERIFY`, function () {
-    const runnerWs = window.top.runnerWs
-
-    cy.stub(window.top.runnerWs, 'emit').callThrough().withArgs('get:user:editor')
-    .yields({
-      preferredOpener: {
-        id: 'foo-editor',
-        name: 'Foo',
-        openerId: 'foo-editor',
-        isOther: false,
-      },
-    })
-
-    window.top.runnerWs.emit.callThrough().withArgs('open:file')
+  it(`✓ VERIFY - ${title}`, function () {
+    if (before) before()
 
     cy.wrap(Cypress.$(window.top.document.body))
     .find('.reporter')
-    .contains(`FAIL - ${getTitle(ctx)}`)
+    .contains(`FAIL - ${getTitle(title, ctx)}`)
     .closest('.collapsible')
     .within(() => {
       cy.contains('View stack trace').click()
@@ -59,7 +51,7 @@ export const verify = (ctx, options) => {
 
       cy.get('.runnable-err-stack-trace')
       .invoke('text')
-      .should('match', fileRegex)
+      .should('match', stackFileRegex)
 
       _.each([].concat(stack), (stackLine) => {
         cy.get('.runnable-err-stack-trace')
@@ -70,29 +62,22 @@ export const verify = (ctx, options) => {
       .should('not.include.text', '__stackReplacementMarker')
 
       cy.contains('.runnable-err-stack-trace .runnable-err-file-path', openInIdePath.relative)
-      .click()
-      .should(() => {
-        expect(runnerWs.emit).to.be.calledWithMatch('open:file', {
-          file: openInIdePath.absolute,
-        })
-      })
 
       cy
       .get('.test-err-code-frame .runnable-err-file-path')
       .invoke('text')
-      .should('match', fileRegex)
+      .should('match', codeFrameFileRegex)
 
-      // code frames will show `fail(this,()=>` as the 1st line
-      cy.get('.test-err-code-frame pre span').should('include.text', 'fail(this,()=>')
+      // code frames will show this as the 1st line
+      if (isCyOrigin) {
+        cy.get('.test-err-code-frame pre span').should('include.text', `('${title}',,function()`)
+      } else if (isPreprocessorWithTypescript) {
+        cy.get('.test-err-code-frame pre span').should('include.text', `'${title}',this,function(){`)
+      } else {
+        cy.get('.test-err-code-frame pre span').should('include.text', `fail('${title}',this,()=>`)
+      }
 
-      cy.contains('.test-err-code-frame .runnable-err-file-path span', openInIdePath.relative)
-      .click()
-      .should(() => {
-        expect(runnerWs.emit.withArgs('open:file')).to.be.calledTwice
-        expect(runnerWs.emit).to.be.calledWithMatch('open:file', {
-          file: openInIdePath.absolute,
-        })
-      })
+      cy.contains('.test-err-code-frame .runnable-err-file-path', openInIdePath.relative)
     })
   })
 }

@@ -1,6 +1,6 @@
 const _ = require('lodash')
 const path = require('path')
-
+const shell = require('shelljs')
 const fs = require('../lib/fs')
 
 // grab the current version and a few other properties
@@ -19,16 +19,27 @@ const {
 const packageJsonSrc = path.join('package.json')
 const packageJsonDest = path.join('build', 'package.json')
 
-function preparePackageForNpmRelease (json) {
+function getStdout (cmd) {
+  return shell.exec(cmd).trim()
+}
+
+function preparePackageForNpmRelease (json, branchName) {
   // modify the existing package.json
   // to prepare it for releasing to npm
   delete json.devDependencies
   delete json['private']
   // no need to include "nyc" code coverage settings
   delete json.nyc
+  delete json.workspaces
 
   _.extend(json, {
     version,
+    buildInfo: {
+      commitBranch: branchName || process.env.CIRCLE_BRANCH || getStdout('git branch --show-current'),
+      commitSha: getStdout('git rev-parse HEAD'),
+      commitDate: new Date(getStdout('git show -s --format=%ci')).toISOString(),
+      stable: false,
+    },
     description,
     homepage,
     license,
@@ -45,9 +56,9 @@ function preparePackageForNpmRelease (json) {
   return json
 }
 
-function makeUserPackageFile () {
+function makeUserPackageFile (branchName) {
   return fs.readJsonAsync(packageJsonSrc)
-  .then(preparePackageForNpmRelease)
+  .then((json) => preparePackageForNpmRelease(json, branchName))
   .then((json) => {
     return fs.outputJsonAsync(packageJsonDest, json, {
       spaces: 2,
@@ -59,7 +70,7 @@ function makeUserPackageFile () {
 module.exports = makeUserPackageFile
 
 if (!module.parent) {
-  makeUserPackageFile()
+  makeUserPackageFile(process.env.BRANCH)
   .catch((err) => {
     /* eslint-disable no-console */
     console.error('Could not write user package file')

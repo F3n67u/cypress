@@ -5,21 +5,23 @@
       "type": "node",
       "request": "attach",
       "name": "Attach by Process ID",
-      "processId": "${command:PickProcess}"
+      "processId": "${command:PickProcess}",
+      "continueOnAttach": true
     },
     {
       "type": "node",
-      "request": "launch",
-      "name": "test: active",
-      "runtimeExecutable": "yarn",
-      "runtimeArgs": [
-        "test-debug-package"
-      ],
-      "args": [
-        "${file}"
-      ],
+      "request": "attach",
+      "name": "Attach to port 5566",
       "port": 5566,
-      "console": "integratedTerminal"
+      "continueOnAttach": true,
+    },
+    {
+      "type": "node",
+      "request": "attach",
+      "name": "Attach to Docker",
+      "port": 5566,
+      "continueOnAttach": true,
+      "remoteRoot": "/opt/cypress",
     },
     {
       "type": "node",

@@ -40,6 +40,9 @@ const isWindows = () => {
 const isGteNode12 = () => {
   return Number(process.versions.node.split('.')[0]) >= 12
 }
+const isGteNode18 = () => {
+  return Number(process.versions.node.split('.')[0]) >= 18
+}
 
 if (!run || !run.length) {
   return exitErr(`
@@ -47,7 +50,7 @@ if (!run || !run.length) {
 
     It should look something like this:
 
-      $ yarn test ./test/unit/api_spec.js
+      $ yarn test ./test/unit/api.cy.js
       $ yarn test api_spec
   `)
 }
@@ -86,6 +89,14 @@ if (isGteNode12()) {
   )
 }
 
+// allow all ciphers to test TLSv1 in Node 18+ for express hosted servers in system tests
+if (isGteNode18()) {
+  // https://github.com/nodejs/node/issues/49210
+  commandAndArguments.args.push(
+    `--tls-cipher-list=DEFAULT@SECLEVEL=0`,
+  )
+}
+
 if (!isWindows()) {
   commandAndArguments.args.push(
     'node_modules/.bin/_mocha',
@@ -101,6 +112,8 @@ if (options.fgrep) {
   )
 }
 
+const configFilePath = path.join(__dirname, 'mocha-reporter-config.json')
+
 commandAndArguments.args.push(
   '--timeout',
   options['inspect-brk'] ? '40000000' : '10000',
@@ -109,7 +122,7 @@ commandAndArguments.args.push(
   '--reporter',
   'mocha-multi-reporters',
   '--reporter-options',
-  'configFile=../../system-tests/scripts/mocha-reporter-config.json',
+  `configFile=${configFilePath}`,
   '--extension=js,ts',
   // restore mocha 2.x behavior to force end process after spec run
   '--exit',
@@ -158,6 +171,7 @@ if (options['cypress-inspect-brk']) {
 const cmd = `${commandAndArguments.command} ${
   commandAndArguments.args.join(' ')}`
 
+console.log('cwd:', process.cwd())
 console.log('specfiles:', run)
 console.log('test command:')
 console.log(cmd)

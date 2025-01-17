@@ -5,17 +5,27 @@ const debug = require('debug')('test')
 const commitInfo = require('@cypress/commit-info')
 const mockedEnv = require('mocked-env')
 
-const errors = require(`${root}../lib/errors`)
-const api = require(`${root}../lib/api`)
-const logger = require(`${root}../lib/logger`)
-const recordMode = require(`${root}../lib/modes/record`)
-const ciProvider = require(`${root}../lib/util/ci_provider`)
+const errors = require(`../../../lib/errors`)
+const api = require(`../../../lib/cloud/api`).default
+const exception = require(`../../../lib/cloud/exception`)
+const recordMode = require(`../../../lib/modes/record`)
+const ciProvider = require(`../../../lib/util/ci_provider`)
 
 const initialEnv = _.clone(process.env)
 
 // NOTE: the majority of the logic of record_spec is
 // tested as an e2e/record_spec
 describe('lib/modes/record', () => {
+  beforeEach(() => {
+    sinon.stub(api, 'sendPreflight').callsFake(async () => {
+      api.setPreflightResult({ encrypt: false })
+    })
+  })
+
+  afterEach(() => {
+    api.resetPreflightResult({ encrypt: false })
+  })
+
   // QUESTION: why are these tests here when
   // this is a module... ?
   context('.getCommitFromGitOrCi', () => {
@@ -190,7 +200,7 @@ describe('lib/modes/record', () => {
         resetEnv()
       })
 
-      it('calls api.createRun with the commit overrided from environment variables', () => {
+      it('calls api.createRun with the commit overridden from environment variables', () => {
         const createRun = sinon.stub(api, 'createRun').resolves()
         const runAllSpecs = sinon.stub()
 
@@ -274,6 +284,8 @@ describe('lib/modes/record', () => {
         }
         const tag = 'nightly,develop'
         const testingType = 'e2e'
+        const autoCancelAfterFailures = 4
+        const project = {}
 
         return recordMode.createRunAndRecordSpecs({
           key,
@@ -289,11 +301,14 @@ describe('lib/modes/record', () => {
           runAllSpecs,
           tag,
           testingType,
+          autoCancelAfterFailures,
+          project,
         })
         .then(() => {
           expect(commitInfo.commitInfo).to.be.calledWith(projectRoot)
 
           expect(api.createRun).to.be.calledWith({
+            projectRoot,
             group,
             parallel,
             projectId,
@@ -325,6 +340,8 @@ describe('lib/modes/record', () => {
               sha: 'sha-123',
             },
             tags: ['nightly', 'develop'],
+            autoCancelAfterFailures: 4,
+            project,
           })
         })
       })
@@ -359,13 +376,13 @@ describe('lib/modes/record', () => {
       })
     })
 
-    it('does not createException when statusCode is 503', () => {
+    it('does not create exception when statusCode is 503', () => {
       const err = new Error('foo')
 
       err.statusCode = 503
 
       api.updateInstanceStdout.rejects(err)
-      sinon.spy(logger, 'createException')
+      sinon.spy(exception, 'create')
 
       const options = {
         instanceId: 'id-123',
@@ -376,7 +393,7 @@ describe('lib/modes/record', () => {
 
       return recordMode.updateInstanceStdout(options)
       .then(() => {
-        expect(logger.createException).not.to.be.called
+        expect(exception.create).not.to.be.called
       })
     })
   })
@@ -426,7 +443,7 @@ describe('lib/modes/record', () => {
         spec: { relative: 'cypress/integration/app_spec.coffee' },
       })).to.be.rejected
 
-      expect(errors.get).to.have.been.calledWith('DASHBOARD_CANNOT_PROCEED_IN_SERIAL')
+      expect(errors.get).to.have.been.calledWith('CLOUD_CANNOT_PROCEED_IN_SERIAL')
     })
   })
 
@@ -451,13 +468,13 @@ describe('lib/modes/record', () => {
 
       api.createRun.rejects(err)
 
-      sinon.spy(errors, 'throw')
+      sinon.spy(errors, 'throwErr')
       await expect(recordMode.createRun({
         git: {},
         recordKey: true, // instead of a string
       })).to.be.rejected
 
-      expect(errors.throw).to.have.been.calledWith('DASHBOARD_RECORD_KEY_NOT_VALID', 'undefined')
+      expect(errors.throwErr).to.have.been.calledWith('CLOUD_RECORD_KEY_NOT_VALID', 'undefined')
     })
   })
 

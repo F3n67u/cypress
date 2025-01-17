@@ -1,6 +1,19 @@
 {
   "extends": "../ts/tsconfig.json",
   "include": [
-    "lib/*",
+    "src/*.ts"
   ],
+  "exclude": [
+    "test"
+  ],
+  "compilerOptions": {
+    "allowJs": false,
+    "rootDir": "src",
+    "noImplicitAny": true,
+    "noUncheckedIndexedAccess": true,
+    "types": ["node"],
+    "typeRoots": [
+      "../../node_modules/@types"
+    ],
+  }
 }

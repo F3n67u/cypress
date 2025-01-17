@@ -4,8 +4,6 @@ import * as Agents from './agents'
 
 import * as Aliasing from './aliasing'
 
-import * as Angular from './angular'
-
 import * as Asserting from './asserting'
 
 import * as Clock from './clock'
@@ -24,11 +22,13 @@ import * as Files from './files'
 
 import * as Fixtures from './fixtures'
 
-import LocalStorage from './local_storage'
+import Storage from './storage'
 
 import * as Location from './location'
 
 import * as Misc from './misc'
+
+import * as Origin from './origin'
 
 import * as Popups from './popups'
 
@@ -56,7 +56,6 @@ export const allCommands = {
   ...Actions,
   Agents,
   Aliasing,
-  Angular,
   Asserting,
   Clock,
   Commands,
@@ -66,9 +65,10 @@ export const allCommands = {
   Exec,
   Files,
   Fixtures,
-  LocalStorage,
+  Storage,
   Location,
   Misc,
+  Origin,
   Popups,
   Navigation,
   ...Querying,

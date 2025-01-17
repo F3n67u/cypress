@@ -4,6 +4,8 @@
     "**/*.ts",
     "./index.ts"
   ],
+  "compilerOptions": {
+  },
   "files": [
     "./../ts/index.d.ts"
   ],

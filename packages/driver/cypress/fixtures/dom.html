@@ -114,6 +114,10 @@
           width: 60px;
         }
 
+        /* normalizing li height across supported browsers */
+        li {
+          height: 18px;
+        }
       </style>
 
       DOM Fixture
@@ -323,6 +327,12 @@
           <button type="submit">submit me</button>
         </form>
 
+        <form id="multiple-inputs-and-button-submit.outside-form">
+          <input name="fname" />
+          <input name="lname" />
+        </form>
+        <button form="multiple-inputs-and-button-submit.outside-form" type="submit">submit me</button>
+
         <form id="multiple-inputs-and-reset-and-submit-buttons">
           <input name="fname" />
           <input name="lname" />
@@ -398,8 +408,11 @@
         <input id="text-with-value" type="text" value="foo" />
         <input id="datetime-with-value" type="datetime" value="2018-01-01T01:00" />
         <input id="datetime-local-with-value" type="datetime-local" value="2018-01-01T01:00" />
+        <input id="datetime-local-without-value" type="datetime-local" />
         <input id="search-with-value" type="search" value="query" />
         <input id="url-with-value" type="url" value="cool.biz" />
+        <input id="range-with-value" type="range" value="2" />
+        <input id="range-without-value" type="range" />
 
         <div contenteditable="true"><br></div>
         <textarea></textarea>
@@ -437,8 +450,8 @@
       </select>
 
       <select name="foods">
-        <option value="Japanese">Ramen</option>
-        <option value="Ramen">Japanese</option>
+        <option value="Ramen">Ramen</option>
+        <option value="Japanese">Japanese</option>
       </select>
 
       <select name="names">
@@ -463,7 +476,7 @@
       </select>
 
       <fieldset disabled>
-        <select name="fielset-disabled">
+        <select name="fieldset-disabled">
           <option value="foo">foo</option>
           <option value="bar">bar</option>
         </select>
